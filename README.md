@@ -19,23 +19,33 @@ This repository contains the complete technical specification for a self-hosted 
 
 ## Documentation
 
-See [`spec.md`](spec.md) for the complete technical specification including:
+### Main Documentation
 
-- System architecture and design
-- Infrastructure requirements and cost analysis
-- Security specifications
-- Backup and disaster recovery procedures
-- Deployment automation (IaC and CI/CD)
-- Maintenance and operational procedures
+- **[spec.md](spec.md)** - Complete technical specification (essential content)
+- **[plan.md](plan.md)** - Deployment execution checklist (quick reference)
+- **[.env.example](.env.example)** - Configuration template with all variables
+
+### Detailed Guides
+
+See [docs/README.md](docs/README.md) for detailed guides including:
+
+- Reverse proxy comparison (Caddy vs Nginx)
+- Attachments architecture explained
+- Detailed cost analysis and optimization
+- Terraform implementation guide
+- CI/CD pipeline configurations
+- Troubleshooting guide
+- Migration procedures
 
 ## Quick Start
 
 1. Review the [Technical Specification](spec.md)
-2. Choose deployment method:
-   - **Manual**: Follow Section 3.5.2
-   - **Automated**: Use Terraform and CI/CD (Section 3.7)
-3. Configure your domain and secrets
-4. Deploy and enjoy a maintenance-free password manager!
+2. Follow the [Deployment Checklist](plan.md)
+3. Copy [.env.example](.env.example) to `.env` and configure
+4. Choose deployment method:
+   - **Manual**: Follow [plan.md](plan.md) checklist
+   - **Automated**: Use [Terraform Guide](docs/terraform-guide.md) and [CI/CD Pipelines](docs/cicd-pipelines.md)
+5. Deploy and enjoy a maintenance-free password manager!
 
 ## Cost Analysis
 
@@ -64,6 +74,28 @@ See [`spec.md`](spec.md) for the complete technical specification including:
 ## License
 
 This specification is provided as-is for personal use.
+
+## Project Structure
+
+```
+my_password_manager/
+├── .cursorrules          # AI assistant instructions
+├── .env.example          # Configuration template
+├── .gitignore
+├── plan.md               # Deployment execution checklist
+├── README.md             # This file
+├── spec.md               # Technical specification
+├── scratchpad.md         # Personal notes (gitignored)
+└── docs/                 # Detailed documentation
+    ├── README.md
+    ├── reverse-proxy-comparison.md
+    ├── attachments-explained.md
+    ├── cost-analysis.md
+    ├── terraform-guide.md
+    ├── cicd-pipelines.md
+    ├── troubleshooting.md
+    └── migration-guide.md
+```
 
 ## Contributing
 

@@ -1,0 +1,60 @@
+# Cursor Rules for Self-Hosted Password Manager Project
+
+## Project Context
+
+This repository contains the technical specification and implementation guide for a self-hosted personal password manager using Vaultwarden. The solution is designed to be vendor-agnostic, secure, and maintenance-free.
+
+## Project Structure
+
+- **`spec.md`**: Main technical specification (essential content only)
+- **`docs/`**: Detailed documentation and guides (informational content)
+- **`plan.md`**: Deployment execution checklist
+- **`.env.example`**: Configuration template
+- **`README.md`**: Project overview and quick start
+
+## Technology Stack Constraints
+
+- **Application**: Vaultwarden (Rust-based Bitwarden-compatible server)
+- **Container Runtime**: Docker & Docker Compose
+- **Reverse Proxy**: Caddy (recommended) or Nginx (alternative)
+- **Database**: SQLite (embedded in Vaultwarden container)
+- **Backup**: Rclone + GPG encryption
+- **Infrastructure**: Vendor-agnostic (Azure, AWS, DigitalOcean, local)
+- **IaC**: Terraform (optional, for automation)
+- **CI/CD**: GitHub Actions or Azure DevOps (optional)
+
+## Key Principles
+
+1. **Vendor Agnostic**: No vendor-specific services (Azure SQL, AWS RDS, etc.)
+2. **Zero-Knowledge**: Server never sees plaintext passwords
+3. **HTTPS Only**: All traffic encrypted, automatic SSL via Let's Encrypt
+4. **Automated**: Updates, backups, and monitoring automated
+5. **Maintenance-Free**: Minimal manual intervention required
+
+## File Organization
+
+- **Essential specs** → `spec.md`
+- **Detailed guides** → `docs/` folder
+- **Deployment steps** → `plan.md`
+- **Configuration** → `.env.example`
+
+## Code Style and Conventions
+
+- Use Docker Compose for container orchestration
+- All scripts should include error handling (`set -e`)
+- Configuration files should be well-commented
+- Security-first approach in all implementations
+
+## Reference Documentation
+
+- Main specification: [spec.md](spec.md)
+- Detailed guides: [docs/README.md](docs/README.md)
+- Deployment checklist: [plan.md](plan.md)
+
+## Important Notes
+
+- SQLite is embedded in Vaultwarden container (not installed separately)
+- Caddy is recommended over Nginx for automatic SSL
+- All backups must be encrypted before upload
+- Cost analysis assumes ₹4,500/month Azure credits
+- Infrastructure must be vendor-agnostic (Docker-based)

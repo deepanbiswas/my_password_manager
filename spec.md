@@ -317,6 +317,8 @@ BACKUP_RETENTION_DAYS=30
 
 ### 3.4 Reverse Proxy Configuration
 
+**Note**: Caddy is the recommended reverse proxy for automatic SSL certificate management. For comparison with Nginx and alternative configurations, see [Reverse Proxy Comparison](docs/reverse-proxy-comparison.md).
+
 #### 3.4.1 Caddy Configuration (`caddy/Caddyfile`)
 
 ```
@@ -368,47 +370,16 @@ http://your-domain.com {
 
 #### 3.4.2 Alternative: Nginx Configuration
 
-If using Nginx instead of Caddy:
-
-```nginx
-server {
-    listen 80;
-    server_name your-domain.com;
-    return 301 https://$server_name$request_uri;
-}
-
-server {
-    listen 443 ssl http2;
-    server_name your-domain.com;
-    
-    ssl_certificate /etc/letsencrypt/live/your-domain.com/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/your-domain.com/privkey.pem;
-    ssl_protocols TLSv1.2 TLSv1.3;
-    ssl_ciphers HIGH:!aNULL:!MD5;
-    
-    # Security headers
-    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains; preload" always;
-    add_header X-Frame-Options "DENY" always;
-    add_header X-Content-Type-Options "nosniff" always;
-    
-    location / {
-        proxy_pass http://vaultwarden:80;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-    }
-    
-    location /notifications/hub {
-        proxy_pass http://vaultwarden:3012;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection "upgrade";
-    }
-}
-```
+**Note**: Caddy is the recommended reverse proxy for automatic SSL certificate management. If you prefer to use Nginx, see [Reverse Proxy Comparison](docs/reverse-proxy-comparison.md) for complete Nginx configuration, Certbot setup, and migration guide.
 
 ### 3.5 Deployment Procedure
+
+**Deployment Methods:**
+
+1. **Automated Deployment (Recommended)**: Using Infrastructure as Code (Terraform) and CI/CD pipelines - see Section 3.7
+2. **Manual Deployment**: Step-by-step setup on pre-provisioned VM - see steps below
+
+For automated deployment, follow the [Terraform Guide](docs/terraform-guide.md) and [CI/CD Pipelines Guide](docs/cicd-pipelines.md). The manual deployment procedure below is provided as an alternative.
 
 #### 3.5.1 Initial Setup Script (`scripts/setup.sh`)
 
@@ -465,7 +436,16 @@ echo "4. Run: cd /opt/vaultwarden && docker-compose up -d"
 
 #### 3.5.2 Deployment Steps
 
-**Manual Deployment (Current Method):**
+**Recommended: Automated Deployment**
+
+For production deployments, automated deployment using Infrastructure as Code and CI/CD is recommended. See Section 3.7 and follow:
+- [Terraform Guide](docs/terraform-guide.md) for infrastructure automation
+- [CI/CD Pipelines Guide](docs/cicd-pipelines.md) for deployment automation
+- [plan.md](plan.md) for automated deployment checklist
+
+**Alternative: Manual Deployment**
+
+For manual deployment on a pre-provisioned VM:
 
 1. **Provision VM**: Create Ubuntu 22.04 LTS VM on Azure (or any provider)
 2. **DNS Configuration**: Point domain A record to VM's public IP
@@ -477,8 +457,6 @@ echo "4. Run: cd /opt/vaultwarden && docker-compose up -d"
 8. **Verify Deployment**: Access `https://your-domain.com` and create admin account
 9. **Disable Signups**: Set `SIGNUPS_ALLOWED=false` in docker-compose.yml (already set)
 10. **Configure Backup Cron**: Add backup script to crontab
-
-**Note**: For automated deployment using Infrastructure as Code (IaC) and CI/CD pipelines, see Section 3.7.
 
 ### 3.6 Resource Tagging and Cost Management
 
@@ -510,62 +488,16 @@ All Azure resources should be tagged for cost tracking and resource management:
 | **Network Security Group** | NSG rules | ₹0 | Free |
 | **Total Estimated Monthly Cost** | | **₹3,000 - ₹4,600** | Varies by usage |
 
-**Cost Optimization Strategies:**
-
-1. **Use Azure Spot VMs**: 60-90% discount (₹1,200-₹1,500/month) - suitable for non-critical workloads
-2. **Reserved Instances**: 1-year commitment saves 30-40% (₹1,800-₹2,000/month)
-3. **Use Standard_B1s**: Smaller instance (1 vCPU, 1 GB RAM) - ₹1,200-₹1,500/month (may require optimization)
-4. **Shutdown during off-hours**: Use Azure Automation to stop VM during non-business hours
-
-#### 3.6.3 INR 4,500 Monthly Azure Credits Sufficiency Analysis
+#### 3.6.3 INR 4,500 Monthly Azure Credits Sufficiency
 
 **Answer: Yes, sufficient for recommended setup**
 
-**Available Credits**: ₹4,500 per month (recurring)
+- **Recommended Setup**: Standard_B2s (2 vCPU, 4 GB RAM)
+- **Monthly Cost**: ₹3,000 - ₹4,600
+- **Credits Coverage**: 98% - 150% of monthly cost
+- **Verdict**: ✅ **Fully covered** with ₹0 - ₹1,500/month buffer
 
-**Scenario 1: Standard_B2s VM (Recommended)**
-- Monthly cost: ₹3,000 - ₹4,600
-- **Credits coverage: 98% - 150% of monthly cost**
-- **Verdict**: ✅ **Fully covered** - Standard_B2s is the recommended configuration and fits comfortably within monthly credits
-- **Remaining credits**: ₹0 - ₹1,500/month buffer for unexpected costs
-
-**Scenario 2: Standard_B1s VM (Minimal)**
-- Monthly cost: ₹1,200 - ₹1,800
-- **Credits coverage: 250% - 375% of monthly cost**
-- **Verdict**: ✅ **More than sufficient** - Leaves significant buffer, but may require performance optimization
-- **Remaining credits**: ₹2,700 - ₹3,300/month available for other services
-
-**Cost Optimization Recommendations:**
-
-1. **Recommended Setup**: Use **Standard_B2s** (2 vCPU, 4 GB RAM) - optimal balance of performance and cost
-   - Monthly cost: ₹3,000 - ₹4,600
-   - Fits within ₹4,500/month credits with buffer
-   - No migration needed while credits are active
-
-2. **Cost Monitoring**: Set up alerts at ₹4,000 (89% of credits) to track usage
-3. **Optimization Options** (if needed):
-   - Use Azure Spot VMs: 60-90% discount (₹1,200-₹1,500/month) - suitable for non-critical workloads
-   - Reserved Instances: 1-year commitment saves 30-40% if planning long-term use
-   - Shutdown during off-hours: Use Azure Automation to stop VM during non-business hours (saves compute costs)
-
-4. **Future Planning** (if credits expire):
-   - **DigitalOcean Droplet**: $6/month (₹500/month) - 1 vCPU, 1 GB RAM
-   - **Linode**: $5/month (₹400/month) - 1 vCPU, 1 GB RAM
-   - **Hetzner**: €4.15/month (₹350/month) - 2 vCPU, 4 GB RAM (best value)
-   - **Oracle Cloud Free Tier**: Always free - 2 vCPU, 1 GB RAM (limited availability)
-
-**Cost Comparison Table:**
-
-| Provider | Instance | Monthly Cost (INR) | Notes |
-|----------|----------|-------------------|-------|
-| **Azure (Pay-as-you-go)** | **Standard_B2s** | **₹3,000 - ₹4,600** | **✅ Covered by ₹4,500/month credits** |
-| Azure (Spot VM) | Standard_B2s | ₹1,200 - ₹1,500 | 60-90% discount, can be evicted |
-| DigitalOcean | Basic Droplet | ₹400 - ₹600 | Reliable, good support |
-| Linode | Nanode 1GB | ₹350 - ₹500 | Good performance |
-| Hetzner | CX11 | ₹350 - ₹400 | Best value, EU-based |
-| Oracle Cloud | Always Free | ₹0 | Limited availability, 2 vCPU |
-
-**Summary**: With ₹4,500/month in Azure credits, the recommended Standard_B2s configuration (₹3,000-₹4,600/month) is fully covered with a comfortable buffer for bandwidth and other incidental costs.
+For detailed cost analysis, provider comparisons, optimization strategies, and future planning scenarios, see [Cost Analysis](docs/cost-analysis.md).
 
 #### 3.6.4 Cost Monitoring Setup
 
@@ -576,7 +508,6 @@ All Azure resources should be tagged for cost tracking and resource management:
 3. Create critical alert at ₹4,400 (98% of monthly credits) - immediate action needed
 4. Set up email notifications
 5. Configure daily cost reports
-6. Monitor weekly spending trends
 
 **Tag-based Cost Analysis:**
 
@@ -588,11 +519,17 @@ az consumption usage list \
   --query "[?tags.Project=='password-manager']"
 ```
 
+For detailed cost monitoring setup and analysis, see [Cost Analysis](docs/cost-analysis.md).
+
 ### 3.7 Infrastructure as Code (IaC) and CI/CD Automation
+
+**Recommended Deployment Method**
+
+Automated deployment using Infrastructure as Code and CI/CD pipelines is the recommended approach for production deployments. This method provides better reproducibility, version control, and disaster recovery capabilities compared to manual deployment.
 
 #### 3.7.1 Overview
 
-The deployment process in Section 3.5.2 can be fully automated using Infrastructure as Code (IaC) and CI/CD pipelines. This enables:
+The deployment process can be fully automated using Infrastructure as Code (IaC) and CI/CD pipelines. This enables:
 - **One-command deployment** to any environment
 - **Version-controlled infrastructure** (Git-based)
 - **Repeatable migrations** across providers
@@ -600,6 +537,13 @@ The deployment process in Section 3.5.2 can be fully automated using Infrastruct
 - **Disaster recovery** via pipeline redeployment
 
 #### 3.7.2 Terraform Infrastructure as Code
+
+Terraform enables automated infrastructure provisioning with version-controlled, repeatable deployments. The configuration includes:
+
+- **Infrastructure Resources**: VM, networking, security groups, public IP
+- **Cloud-Init Integration**: Automated VM setup on first boot
+- **Resource Tagging**: Cost tracking and management
+- **Remote State**: Optional Azure Storage backend for state management
 
 **Terraform Configuration Structure:**
 
@@ -609,502 +553,29 @@ infrastructure/
 │   ├── main.tf                 # Main infrastructure definition
 │   ├── variables.tf            # Input variables
 │   ├── outputs.tf              # Output values
-│   ├── providers.tf            # Provider configuration
-│   ├── vm.tf                   # VM resource definition
-│   ├── network.tf              # Network security group
-│   └── tags.tf                 # Resource tagging
-├── terraform.tfvars.example    # Example variable values
-└── terraform.tfstate           # State file (gitignored)
+│   └── scripts/
+│       └── cloud-init.sh       # Bootstrap automation script
 ```
 
-**Example Terraform Configuration (`infrastructure/terraform/main.tf`):**
+For complete Terraform code, variable explanations, cloud-init script details, and step-by-step implementation guide, see [Terraform Guide](docs/terraform-guide.md).
 
-```hcl
-terraform {
-  required_version = ">= 1.5.0"
-  
-  required_providers {
-    azurerm = {
-      source  = "hashicorp/azurerm"
-      version = "~> 3.0"
-    }
-  }
-  
-  # Optional: Remote state backend (Azure Storage)
-  backend "azurerm" {
-    resource_group_name  = "terraform-state-rg"
-    storage_account_name = "tfstate<unique-id>"
-    container_name       = "tfstate"
-    key                  = "password-manager.terraform.tfstate"
-  }
-}
+#### 3.7.3 CI/CD Pipeline Automation
 
-provider "azurerm" {
-  features {}
-}
+CI/CD pipelines automate the deployment process, enabling one-command deployment with automated testing and health verification.
 
-# Resource Group
-resource "azurerm_resource_group" "main" {
-  name     = "rg-password-manager-${var.environment}"
-  location = var.location
-  
-  tags = {
-    Project     = "password-manager"
-    Environment = var.environment
-    Component   = "infrastructure"
-    ManagedBy   = "terraform"
-    CostCenter  = "personal"
-  }
-}
+**Available Options:**
+- **GitHub Actions**: Complete workflow for Terraform plan/apply and application deployment
+- **Azure DevOps**: Alternative pipeline with similar capabilities
 
-# Virtual Network
-resource "azurerm_virtual_network" "main" {
-  name                = "vnet-password-manager"
-  address_space       = ["10.0.0.0/16"]
-  location            = azurerm_resource_group.main.location
-  resource_group_name = azurerm_resource_group.main.name
-  
-  tags = azurerm_resource_group.main.tags
-}
+**Key Benefits:**
+- Reproducible deployments across environments
+- Version-controlled infrastructure changes
+- Automated health checks
+- Disaster recovery via pipeline redeployment
 
-# Subnet
-resource "azurerm_subnet" "main" {
-  name                 = "subnet-password-manager"
-  resource_group_name  = azurerm_resource_group.main.name
-  virtual_network_name = azurerm_virtual_network.main.name
-  address_prefixes     = ["10.0.1.0/24"]
-}
+For complete GitHub Actions and Azure DevOps pipeline configurations, required secrets setup, and best practices, see [CI/CD Pipelines Guide](docs/cicd-pipelines.md).
 
-# Network Security Group
-resource "azurerm_network_security_group" "main" {
-  name                = "nsg-password-manager"
-  location            = azurerm_resource_group.main.location
-  resource_group_name = azurerm_resource_group.main.name
-  
-  security_rule {
-    name                       = "AllowHTTP"
-    priority                   = 1000
-    direction                  = "Inbound"
-    access                     = "Allow"
-    protocol                   = "Tcp"
-    source_port_range          = "*"
-    destination_port_range     = "80"
-    source_address_prefix      = "*"
-    destination_address_prefix = "*"
-  }
-  
-  security_rule {
-    name                       = "AllowHTTPS"
-    priority                   = 1001
-    direction                  = "Inbound"
-    access                     = "Allow"
-    protocol                   = "Tcp"
-    source_port_range          = "*"
-    destination_port_range     = "443"
-    source_address_prefix      = "*"
-    destination_address_prefix = "*"
-  }
-  
-  security_rule {
-    name                       = "DenyAllInbound"
-    priority                   = 4000
-    direction                  = "Inbound"
-    access                     = "Deny"
-    protocol                   = "*"
-    source_port_range          = "*"
-    destination_port_range     = "*"
-    source_address_prefix      = "*"
-    destination_address_prefix = "*"
-  }
-  
-  tags = azurerm_resource_group.main.tags
-}
-
-# Public IP
-resource "azurerm_public_ip" "main" {
-  name                = "pip-password-manager"
-  location            = azurerm_resource_group.main.location
-  resource_group_name = azurerm_resource_group.main.name
-  allocation_method   = "Static"
-  sku                 = "Basic"
-  
-  tags = azurerm_resource_group.main.tags
-}
-
-# Network Interface
-resource "azurerm_network_interface" "main" {
-  name                = "nic-password-manager"
-  location            = azurerm_resource_group.main.location
-  resource_group_name = azurerm_resource_group.main.name
-  
-  ip_configuration {
-    name                          = "internal"
-    subnet_id                     = azurerm_subnet.main.id
-    private_ip_address_allocation = "Dynamic"
-    public_ip_address_id          = azurerm_public_ip.main.id
-  }
-  
-  tags = azurerm_resource_group.main.tags
-}
-
-# Associate NSG with NIC
-resource "azurerm_network_interface_security_group_association" "main" {
-  network_interface_id      = azurerm_network_interface.main.id
-  network_security_group_id = azurerm_network_security_group.main.id
-}
-
-# Virtual Machine
-resource "azurerm_linux_virtual_machine" "main" {
-  name                = "vm-password-manager"
-  location            = azurerm_resource_group.main.location
-  resource_group_name = azurerm_resource_group.main.name
-  size                = var.vm_size
-  admin_username      = var.admin_username
-  
-  network_interface_ids = [
-    azurerm_network_interface.main.id
-  ]
-  
-  admin_ssh_key {
-    username   = var.admin_username
-    public_key = file(var.ssh_public_key_path)
-  }
-  
-  os_disk {
-    name                 = "osdisk-password-manager"
-    caching              = "ReadWrite"
-    storage_account_type = "Premium_LRS"
-    disk_size_gb         = 64
-  }
-  
-  source_image_reference {
-    publisher = "Canonical"
-    offer     = "0001-com-ubuntu-server-jammy"
-    sku       = "22_04-lts-gen2"
-    version   = "latest"
-  }
-  
-  # Custom data script for initial setup
-  custom_data = base64encode(templatefile("${path.module}/scripts/cloud-init.sh", {
-    domain = var.domain
-  }))
-  
-  tags = merge(azurerm_resource_group.main.tags, {
-    Component = "vaultwarden"
-    Backup    = "enabled"
-  })
-}
-
-# Outputs
-output "vm_public_ip" {
-  value       = azurerm_public_ip.main.ip_address
-  description = "Public IP address of the VM"
-}
-
-output "vm_ssh_command" {
-  value       = "ssh ${var.admin_username}@${azurerm_public_ip.main.ip_address}"
-  description = "SSH command to connect to the VM"
-}
-```
-
-**Variables File (`infrastructure/terraform/variables.tf`):**
-
-```hcl
-variable "location" {
-  description = "Azure region for resources"
-  type        = string
-  default     = "Central India"
-}
-
-variable "environment" {
-  description = "Environment name (production, staging, development)"
-  type        = string
-  default     = "production"
-}
-
-variable "vm_size" {
-  description = "VM size SKU"
-  type        = string
-  default     = "Standard_B2s"
-}
-
-variable "admin_username" {
-  description = "Admin username for VM"
-  type        = string
-  default     = "azureuser"
-}
-
-variable "ssh_public_key_path" {
-  description = "Path to SSH public key file"
-  type        = string
-  default     = "~/.ssh/id_rsa.pub"
-}
-
-variable "domain" {
-  description = "Domain name for Vaultwarden"
-  type        = string
-}
-```
-
-**Cloud-Init Script (`infrastructure/terraform/scripts/cloud-init.sh`):**
-
-**Purpose**: The `cloud-init.sh` script is a bootstrap automation script that runs automatically on the first boot of a newly provisioned Azure VM. It eliminates the need for manual SSH access and setup by automatically installing all required dependencies (Docker, Docker Compose, Rclone, GPG, SQLite), creating directory structures, and configuring the firewall. This enables true zero-touch infrastructure provisioning when combined with Terraform and CI/CD pipelines.
-
-```bash
-#!/bin/bash
-# This script runs on first boot via cloud-init
-
-# Update system
-apt-get update && apt-get upgrade -y
-
-# Install Docker
-curl -fsSL https://get.docker.com -o get-docker.sh
-sh get-docker.sh
-usermod -aG docker ${admin_username}
-
-# Install Docker Compose
-curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
-chmod +x /usr/local/bin/docker-compose
-
-# Install Rclone
-curl https://rclone.org/install.sh | bash
-
-# Install GPG and SQLite CLI
-apt-get install -y gnupg2 sqlite3
-
-# Create directory structure
-mkdir -p /opt/vaultwarden/{caddy/{data,config},vaultwarden/data,scripts,backups}
-chown -R ${admin_username}:${admin_username} /opt/vaultwarden
-
-# Configure firewall
-ufw allow 80/tcp
-ufw allow 443/tcp
-ufw --force enable
-
-# Log completion
-echo "Cloud-init completed at $(date)" >> /var/log/cloud-init.log
-```
-
-#### 3.7.3 CI/CD Pipeline with GitHub Actions
-
-**GitHub Actions Workflow (`.github/workflows/deploy.yml`):**
-
-```yaml
-name: Deploy Password Manager
-
-on:
-  push:
-    branches:
-      - main
-    paths:
-      - 'infrastructure/**'
-      - 'docker-compose.yml'
-      - '.github/workflows/deploy.yml'
-  workflow_dispatch:
-    inputs:
-      environment:
-        description: 'Deployment environment'
-        required: true
-        default: 'production'
-        type: choice
-        options:
-          - production
-          - staging
-
-env:
-  AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-  AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
-  AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
-  AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
-
-jobs:
-  terraform-plan:
-    name: Terraform Plan
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: ./infrastructure/terraform
-    
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-      
-      - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v3
-        with:
-          terraform_version: 1.5.0
-      
-      - name: Terraform Init
-        run: terraform init
-      
-      - name: Terraform Validate
-        run: terraform validate
-      
-      - name: Terraform Plan
-        run: terraform plan -out=tfplan
-        env:
-          TF_VAR_domain: ${{ secrets.DOMAIN }}
-      
-      - name: Upload Terraform Plan
-        uses: actions/upload-artifact@v3
-        with:
-          name: terraform-plan
-          path: infrastructure/terraform/tfplan
-
-  terraform-apply:
-    name: Terraform Apply
-    needs: terraform-plan
-    runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main'
-    defaults:
-      run:
-        working-directory: ./infrastructure/terraform
-    
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-      
-      - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v3
-        with:
-          terraform_version: 1.5.0
-      
-      - name: Configure Azure credentials
-        uses: azure/login@v1
-        with:
-          creds: ${{ secrets.AZURE_CREDENTIALS }}
-      
-      - name: Terraform Init
-        run: terraform init
-      
-      - name: Download Terraform Plan
-        uses: actions/download-artifact@v3
-        with:
-          name: terraform-plan
-      
-      - name: Terraform Apply
-        run: terraform apply -auto-approve tfplan
-        env:
-          TF_VAR_domain: ${{ secrets.DOMAIN }}
-      
-      - name: Get VM Public IP
-        id: vm-ip
-        run: |
-          VM_IP=$(terraform output -raw vm_public_ip)
-          echo "vm_ip=$VM_IP" >> $GITHUB_OUTPUT
-      
-      - name: Setup SSH
-        uses: webfactory/ssh-agent@v0.7.0
-        with:
-          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
-      
-      - name: Deploy Application
-        run: |
-          ssh -o StrictHostKeyChecking=no ${{ secrets.VM_USERNAME }}@${{ steps.vm-ip.outputs.vm_ip }} << 'EOF'
-            cd /opt/vaultwarden
-            git pull origin main || git clone https://github.com/${{ github.repository }}.git .
-            docker-compose pull
-            docker-compose up -d
-          EOF
-      
-      - name: Health Check
-        run: |
-          VM_IP=$(terraform output -raw vm_public_ip)
-          sleep 30  # Wait for services to start
-          curl -f https://${{ secrets.DOMAIN }} || exit 1
-      
-      - name: Comment PR
-        if: github.event_name == 'pull_request'
-        uses: actions/github-script@v6
-        with:
-          script: |
-            github.rest.issues.createComment({
-              issue_number: context.issue.number,
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              body: '✅ Deployment completed successfully!'
-            })
-```
-
-**Required GitHub Secrets:**
-
-- `AZURE_SUBSCRIPTION_ID`: Azure subscription ID
-- `AZURE_CLIENT_ID`: Service principal client ID
-- `AZURE_CLIENT_SECRET`: Service principal client secret
-- `AZURE_TENANT_ID`: Azure tenant ID
-- `AZURE_CREDENTIALS`: JSON credentials for Azure login
-- `DOMAIN`: Your domain name
-- `SSH_PRIVATE_KEY`: Private SSH key for VM access
-- `VM_USERNAME`: VM admin username
-
-#### 3.7.4 Alternative: Azure DevOps Pipeline
-
-**Azure Pipelines YAML (`azure-pipelines.yml`):**
-
-```yaml
-trigger:
-  branches:
-    include:
-      - main
-
-pool:
-  vmImage: 'ubuntu-latest'
-
-variables:
-  - group: password-manager-variables
-
-stages:
-  - stage: Infrastructure
-    displayName: 'Deploy Infrastructure'
-    jobs:
-      - job: Terraform
-        displayName: 'Terraform Apply'
-        steps:
-          - task: TerraformInstaller@0
-            displayName: 'Install Terraform'
-            inputs:
-              terraformVersion: '1.5.0'
-          
-          - task: TerraformTaskV3@3
-            displayName: 'Terraform Init & Apply'
-            inputs:
-              provider: 'azurerm'
-              command: 'apply'
-              workingDirectory: '$(System.DefaultWorkingDirectory)/infrastructure/terraform'
-              backendServiceArm: 'Azure-Service-Connection'
-              backendAzureRmResourceGroupName: 'terraform-state-rg'
-              backendAzureRmStorageAccountName: 'tfstate$(unique-id)'
-              backendAzureRmContainerName: 'tfstate'
-              backendAzureRmKey: 'password-manager.terraform.tfstate'
-  
-  - stage: Application
-    displayName: 'Deploy Application'
-    dependsOn: Infrastructure
-    jobs:
-      - job: Deploy
-        displayName: 'Deploy Vaultwarden'
-        steps:
-          - task: SSH@0
-            displayName: 'Deploy via SSH'
-            inputs:
-              sshEndpoint: 'VM-SSH-Connection'
-              runOptions: 'commands'
-              commands: |
-                cd /opt/vaultwarden
-                git pull origin main
-                docker-compose pull
-                docker-compose up -d
-          
-          - task: PowerShell@2
-            displayName: 'Health Check'
-            inputs:
-              targetType: 'inline'
-              script: |
-                $response = Invoke-WebRequest -Uri "https://$(domain)" -UseBasicParsing
-                if ($response.StatusCode -ne 200) { exit 1 }
-```
-
-#### 3.7.5 Deployment Automation Benefits
+#### 3.7.4 Deployment Automation Benefits
 
 **Advantages of IaC + CI/CD Approach:**
 
@@ -1270,20 +741,11 @@ The backup process captures:
 
 #### 5.1.1.1 Understanding Attachments and Attachment Store
 
-**Attachments** in Vaultwarden/Bitwarden are files that users can securely attach to their password entries or secure notes. Examples include:
-- Document files (PDFs, Word documents, spreadsheets)
-- Image files (screenshots, scanned documents)
-- Certificate files (SSL certificates, SSH keys)
-- Any other file type that users want to store securely alongside their vault data
+**Attachments** are files (documents, images, certificates, etc.) that users can securely attach to password entries. They are encrypted client-side (zero-knowledge) and stored separately from the database for performance.
 
-**Attachment Store** refers to the physical storage location where these files are persisted on the server. In this setup:
-- **Location**: `/opt/vaultwarden/vaultwarden/data/attachments/`
-- **Storage Type**: Local filesystem (mounted as Docker volume)
-- **Organization**: Files are organized by user and vault entry ID
-- **Encryption**: Attachments are encrypted client-side before upload (zero-knowledge)
-- **Size Limits**: Configurable per user/organization (default: 1GB per user in free tier)
+**Attachment Store** location: `/opt/vaultwarden/vaultwarden/data/attachments/`
 
-The attachment store is separate from the SQLite database to optimize performance and allow for scalable storage. The database only stores metadata (file names, sizes, paths), while actual file content is stored in the attachments directory.
+For detailed information on attachments architecture, encryption, size limits, and optimization, see [Attachments Explained](docs/attachments-explained.md).
 
 #### 5.1.2 Backup Script Architecture (`scripts/backup.sh`)
 
@@ -1768,66 +1230,7 @@ rclone lsf gdrive:vaultwarden-backups/
 
 ### 6.5 Troubleshooting
 
-#### 6.5.1 Common Issues
-
-**Issue: SSL Certificate Not Renewing**
-
-```bash
-# Check Caddy logs
-docker logs caddy
-
-# Manually renew (if using Certbot)
-sudo certbot renew --dry-run
-```
-
-**Issue: Container Won't Start**
-
-```bash
-# Check logs
-docker-compose logs vaultwarden
-
-# Check disk space
-df -h
-
-# Check permissions
-ls -la /opt/vaultwarden/vaultwarden/data
-```
-
-**Issue: Backup Fails**
-
-```bash
-# Check Rclone configuration
-rclone config show gdrive
-
-# Test Rclone connection
-rclone lsd gdrive:
-
-# Check encryption key
-echo $BACKUP_ENCRYPTION_KEY
-```
-
-#### 6.5.2 Emergency Procedures
-
-**Emergency Stop:**
-
-```bash
-cd /opt/vaultwarden
-docker-compose down
-```
-
-**Emergency Restore:**
-
-```bash
-cd /opt/vaultwarden
-./scripts/restore.sh <latest-backup-file>
-```
-
-**Complete Reset:**
-
-1. Stop all services: `docker-compose down`
-2. Backup current data (if accessible)
-3. Remove volumes: `docker-compose down -v`
-4. Restore from backup: `./scripts/restore.sh <backup-file>`
+For common issues, solutions, emergency procedures, debugging steps, and performance troubleshooting, see [Troubleshooting Guide](docs/troubleshooting.md).
 
 ### 6.6 Documentation Maintenance
 
@@ -1902,35 +1305,7 @@ docker-compose pull && docker-compose up -d
 
 ## Appendix B: Migration Guide
 
-### B.1 Migrating to New Infrastructure
-
-1. **Prepare New Server**: Follow deployment procedure (Section 3.5)
-2. **Configure Rclone**: Set up Google Drive access
-3. **Restore Backup**: Use restore script (Section 5.2.2)
-4. **Update DNS**: Point domain to new server IP
-5. **Verify**: Test all functionality
-6. **Decommission Old Server**: After verification period
-
-### B.2 Vendor-Specific Notes
-
-**Azure VM:**
-- Use Standard_B2s or higher (2 vCPU, 4 GB RAM)
-- Enable managed disk encryption
-- Configure Network Security Group (allow 80/443 only)
-
-**AWS EC2:**
-- Use t3.small or higher
-- Configure Security Group (allow 80/443 only)
-- Use EBS encryption for volumes
-
-**DigitalOcean:**
-- Use 2GB/2vCPU Droplet minimum
-- Configure Firewall (allow 80/443 only)
-
-**Local Machine:**
-- Ensure static IP or dynamic DNS
-- Port forward 80/443 from router
-- Consider using Tailscale/ZeroTier for secure access
+For detailed migration procedures, vendor-specific notes, step-by-step migration process, and rollback procedures, see [Migration Guide](docs/migration-guide.md).
 
 ---
 

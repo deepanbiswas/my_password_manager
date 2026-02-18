@@ -52,3 +52,6 @@ id_rsa.pub
 *.gpg
 *.asc
 private-keys/
+
+# Scratchpad (personal notes)
+scratchpad.md
