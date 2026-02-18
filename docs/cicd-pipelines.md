@@ -131,7 +131,7 @@ jobs:
             fi
             
             # Verify templates directory exists
-            if [ ! -d "infrastructure/terraform/templates" ]; then
+            if [ ! -d "infrastructure/templates" ]; then
               echo "Error: Templates directory not found. Ensure templates are committed to repository."
               exit 1
             fi
@@ -145,7 +145,7 @@ jobs:
               sed -e "s|{{ADMIN_TOKEN}}|${ADMIN_TOKEN}|g" \
                   -e "s|{{DOMAIN}}|${{ secrets.DOMAIN }}|g" \
                   -e "s|{{BACKUP_ENCRYPTION_KEY}}|${BACKUP_ENCRYPTION_KEY}|g" \
-                  infrastructure/terraform/templates/.env.template > .env
+                  infrastructure/templates/.env.template > .env
               chmod 600 .env
             fi
             
@@ -158,7 +158,7 @@ jobs:
             if [ ! -f docker-compose.yml ]; then
               sed -e "s|{{DOMAIN}}|${DOMAIN}|g" \
                   -e "s|{{ADMIN_TOKEN}}|${ADMIN_TOKEN}|g" \
-                  infrastructure/terraform/templates/docker-compose.yml.template > docker-compose.yml
+                  infrastructure/templates/docker-compose.yml.template > docker-compose.yml
             fi
             
             # Generate Caddyfile from template if it doesn't exist
@@ -166,20 +166,20 @@ jobs:
             DOMAIN_NAME=$(echo ${DOMAIN} | sed 's|https\?://||')
             if [ ! -f caddy/Caddyfile ]; then
               sed "s|{{DOMAIN_NAME}}|${DOMAIN_NAME}|g" \
-                  infrastructure/terraform/templates/Caddyfile.template > caddy/Caddyfile
+                  infrastructure/templates/Caddyfile.template > caddy/Caddyfile
             fi
             
             # Deploy backup script from template if it doesn't exist
             if [ ! -f scripts/backup.sh ]; then
               mkdir -p scripts
-              cp infrastructure/terraform/templates/backup.sh.template scripts/backup.sh
+              cp infrastructure/templates/backup.sh.template scripts/backup.sh
               chmod +x scripts/backup.sh
             fi
             
             # Deploy health check script from template if it doesn't exist
             if [ ! -f scripts/health-check.sh ]; then
               sed "s|{{DOMAIN}}|${DOMAIN}|g" \
-                  infrastructure/terraform/templates/health-check.sh.template > scripts/health-check.sh
+                  infrastructure/templates/health-check.sh.template > scripts/health-check.sh
               chmod +x scripts/health-check.sh
             fi
             

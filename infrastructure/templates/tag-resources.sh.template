@@ -1,0 +1,210 @@
+#!/bin/bash
+set -e
+
+# Azure Resource Tagging Script
+# Reuses the same tag structure as Terraform (docs/terraform-guide.md)
+# Usage: ./tag-resources.sh <resource-group-name> <owner-email> [environment]
+
+# Configuration
+RESOURCE_GROUP="${1}"
+OWNER_EMAIL="${2}"
+ENVIRONMENT="${3:-production}"
+
+# Validation
+if [ -z "${RESOURCE_GROUP}" ] || [ -z "${OWNER_EMAIL}" ]; then
+    echo "Usage: $0 <resource-group-name> <owner-email> [environment]"
+    echo "  environment defaults to 'production' if not specified"
+    exit 1
+fi
+
+# Verify Azure CLI is installed and logged in
+if ! command -v az &> /dev/null; then
+    echo "Error: Azure CLI is not installed. Please install it first."
+    exit 1
+fi
+
+# Check if logged in
+if ! az account show &> /dev/null; then
+    echo "Error: Not logged in to Azure. Please run 'az login' first."
+    exit 1
+fi
+
+# Verify resource group exists
+if ! az group show --name "${RESOURCE_GROUP}" &> /dev/null; then
+    echo "Error: Resource group '${RESOURCE_GROUP}' not found."
+    exit 1
+fi
+
+echo "=========================================="
+echo "Azure Resource Tagging Script"
+echo "=========================================="
+echo "Resource Group: ${RESOURCE_GROUP}"
+echo "Owner Email: ${OWNER_EMAIL}"
+echo "Environment: ${ENVIRONMENT}"
+echo "=========================================="
+echo ""
+
+# Base tags (same as Terraform's azurerm_resource_group.main.tags)
+# Only difference: ManagedBy = "manual" instead of "terraform"
+BASE_TAGS="Project=password-manager Environment=${ENVIRONMENT} Component=infrastructure ManagedBy=manual CostCenter=personal"
+
+# VM-specific tags (same as Terraform's merge logic)
+# Component=vaultwarden overrides base Component, Backup=enabled added
+VM_TAGS="${BASE_TAGS} Component=vaultwarden Backup=enabled Owner=${OWNER_EMAIL}"
+
+# Function to tag a resource
+tag_resource() {
+    local resource_type=$1
+    local resource_name=$2
+    local tags=$3
+    
+    echo "Tagging ${resource_type}: ${resource_name}..."
+    if az ${resource_type} update \
+        --resource-group "${RESOURCE_GROUP}" \
+        --name "${resource_name}" \
+        --set ${tags} &> /dev/null; then
+        echo "  ✓ Successfully tagged ${resource_name}"
+        return 0
+    else
+        echo "  ✗ Failed to tag ${resource_name} (resource may not exist or name may differ)"
+        return 1
+    fi
+}
+
+# Function to tag resource group
+tag_resource_group() {
+    echo "Tagging Resource Group: ${RESOURCE_GROUP}..."
+    if az group update \
+        --name "${RESOURCE_GROUP}" \
+        --set ${BASE_TAGS} &> /dev/null; then
+        echo "  ✓ Successfully tagged resource group"
+        return 0
+    else
+        echo "  ✗ Failed to tag resource group"
+        return 1
+    fi
+}
+
+# Start tagging
+SUCCESS_COUNT=0
+FAILED_COUNT=0
+
+# Tag Resource Group
+if tag_resource_group; then
+    ((SUCCESS_COUNT++))
+else
+    ((FAILED_COUNT++))
+fi
+
+# Discover and tag Virtual Machine
+echo ""
+echo "Discovering Virtual Machine..."
+VM_NAME=$(az vm list --resource-group "${RESOURCE_GROUP}" --query "[0].name" -o tsv 2>/dev/null || echo "")
+if [ -n "${VM_NAME}" ]; then
+    if tag_resource "vm" "${VM_NAME}" "${VM_TAGS}"; then
+        ((SUCCESS_COUNT++))
+    else
+        ((FAILED_COUNT++))
+    fi
+else
+    echo "  ⚠ No virtual machine found in resource group"
+fi
+
+# Discover and tag OS Disk
+echo ""
+echo "Discovering OS Disk..."
+DISK_NAME=$(az disk list --resource-group "${RESOURCE_GROUP}" --query "[0].name" -o tsv 2>/dev/null || echo "")
+if [ -n "${DISK_NAME}" ]; then
+    if tag_resource "disk" "${DISK_NAME}" "${BASE_TAGS}"; then
+        ((SUCCESS_COUNT++))
+    else
+        ((FAILED_COUNT++))
+    fi
+else
+    echo "  ⚠ No disk found in resource group"
+fi
+
+# Discover and tag Network Interface
+echo ""
+echo "Discovering Network Interface..."
+NIC_NAME=$(az network nic list --resource-group "${RESOURCE_GROUP}" --query "[0].name" -o tsv 2>/dev/null || echo "")
+if [ -n "${NIC_NAME}" ]; then
+    if tag_resource "network nic" "${NIC_NAME}" "${BASE_TAGS}"; then
+        ((SUCCESS_COUNT++))
+    else
+        ((FAILED_COUNT++))
+    fi
+else
+    echo "  ⚠ No network interface found in resource group"
+fi
+
+# Discover and tag Public IP Address
+echo ""
+echo "Discovering Public IP Address..."
+PIP_NAME=$(az network public-ip list --resource-group "${RESOURCE_GROUP}" --query "[0].name" -o tsv 2>/dev/null || echo "")
+if [ -n "${PIP_NAME}" ]; then
+    if tag_resource "network public-ip" "${PIP_NAME}" "${BASE_TAGS}"; then
+        ((SUCCESS_COUNT++))
+    else
+        ((FAILED_COUNT++))
+    fi
+else
+    echo "  ⚠ No public IP address found in resource group"
+fi
+
+# Discover and tag Network Security Group
+echo ""
+echo "Discovering Network Security Group..."
+NSG_NAME=$(az network nsg list --resource-group "${RESOURCE_GROUP}" --query "[0].name" -o tsv 2>/dev/null || echo "")
+if [ -n "${NSG_NAME}" ]; then
+    if tag_resource "network nsg" "${NSG_NAME}" "${BASE_TAGS}"; then
+        ((SUCCESS_COUNT++))
+    else
+        ((FAILED_COUNT++))
+    fi
+else
+    echo "  ⚠ No network security group found in resource group"
+fi
+
+# Discover and tag Virtual Network
+echo ""
+echo "Discovering Virtual Network..."
+VNET_NAME=$(az network vnet list --resource-group "${RESOURCE_GROUP}" --query "[0].name" -o tsv 2>/dev/null || echo "")
+if [ -n "${VNET_NAME}" ]; then
+    if tag_resource "network vnet" "${VNET_NAME}" "${BASE_TAGS}"; then
+        ((SUCCESS_COUNT++))
+    else
+        ((FAILED_COUNT++))
+    fi
+else
+    echo "  ⚠ No virtual network found in resource group"
+fi
+
+# Summary
+echo ""
+echo "=========================================="
+echo "Tagging Summary"
+echo "=========================================="
+echo "Successfully tagged: ${SUCCESS_COUNT} resource(s)"
+if [ ${FAILED_COUNT} -gt 0 ]; then
+    echo "Failed/Warning: ${FAILED_COUNT} resource(s)"
+    echo ""
+    echo "Note: Some resources may not exist or have different names."
+    echo "      Verify tags in Azure Portal if needed."
+fi
+echo "=========================================="
+
+# Verify tags (optional - show VM tags as example)
+if [ -n "${VM_NAME}" ]; then
+    echo ""
+    echo "Verification - VM Tags:"
+    az vm show --resource-group "${RESOURCE_GROUP}" --name "${VM_NAME}" --query "tags" -o table 2>/dev/null || echo "  Could not retrieve tags"
+fi
+
+echo ""
+echo "Tagging complete!"
+echo ""
+echo "Tags applied match Terraform's tag structure:"
+echo "  - Base tags: Project, Environment, Component, ManagedBy, CostCenter"
+echo "  - VM-specific: Component=vaultwarden, Backup=enabled, Owner"
+echo "  - Only difference: ManagedBy=manual (vs terraform in automated deployment)"

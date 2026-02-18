@@ -13,14 +13,14 @@ infrastructure/
 │   ├── azure.tf                # Azure-specific resources (vendor-specific)
 │   ├── variables.tf            # Input variables
 │   ├── outputs.tf              # Output values
-│   ├── scripts/
-│   │   └── cloud-init.sh       # Cloud-init script for VM bootstrap
-│   └── templates/              # Deployment templates (used by CI/CD and manual deployment)
-│       ├── docker-compose.yml.template
-│       ├── Caddyfile.template
-│       ├── backup.sh.template
-│       ├── health-check.sh.template
-│       └── .env.template
+│   └── scripts/
+│       └── cloud-init.sh       # Cloud-init script for VM bootstrap
+├── templates/                  # Deployment templates (shared by CI/CD and manual deployment)
+│   ├── docker-compose.yml.template
+│   ├── Caddyfile.template
+│   ├── backup.sh.template
+│   ├── health-check.sh.template
+│   └── .env.template
 ├── terraform.tfvars            # Variable values (create from example)
 ├── terraform.tfvars.example    # Example variable values
 └── terraform.tfstate           # State file (gitignored, auto-generated)

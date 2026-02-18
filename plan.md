@@ -1,6 +1,89 @@
-# Deployment Execution Checklist
+# Implementation & Operations Guide
 
-Quick reference checklist for deploying the self-hosted password manager. For detailed steps and explanations, refer to [spec.md](spec.md).
+Step-by-step execution guide for deploying, operating, and maintaining the self-hosted password manager. For requirements and specifications, refer to [spec.md](spec.md).
+
+## Table of Contents
+
+1. [Requirements to Execution Mapping](#requirements-to-execution-mapping)
+2. [Deployment Methods](#deployment-methods)
+3. [Automated Deployment (Recommended)](#automated-deployment-recommended)
+   - [Prerequisites](#prerequisites)
+   - [Step 1: Terraform Setup](#step-1-terraform-setup)
+   - [Step 2: CI/CD Pipeline Setup](#step-2-cicd-pipeline-setup)
+   - [Step 3: Post-Infrastructure Configuration](#step-3-post-infrastructure-configuration)
+   - [Step 4: Verification & Cost Monitoring](#step-4-verification--cost-monitoring)
+   - [Step 5: Ongoing Operations](#step-5-ongoing-operations)
+4. [Manual Deployment (Alternative)](#manual-deployment-alternative)
+   - [Pre-Deployment Checklist](#pre-deployment-checklist)
+   - [Step 1: Initial Server Setup](#step-1-initial-server-setup)
+   - [Step 2: Configuration](#step-2-configuration)
+   - [Step 3: Rclone Configuration](#step-3-rclone-configuration)
+   - [Step 4: DNS Configuration](#step-4-dns-configuration)
+   - [Step 5: Deploy Services](#step-5-deploy-services)
+   - [Step 6: Post-Deployment Verification](#step-6-post-deployment-verification)
+   - [Step 7: Backup Automation](#step-7-backup-automation)
+   - [Step 8: Health Monitoring (Optional)](#step-8-health-monitoring-optional)
+   - [Step 9: Resource Tagging & Cost Monitoring](#step-9-resource-tagging--cost-monitoring)
+5. [Quick Reference Commands](#quick-reference-commands)
+6. [Disaster Recovery](#disaster-recovery)
+7. [Templates Reference](#templates-reference)
+8. [Rollback Procedures](#rollback-procedures)
+9. [Troubleshooting](#troubleshooting)
+10. [Next Steps](#next-steps)
+11. [Quick Reference: Automated vs Manual](#quick-reference-automated-vs-manual)
+12. [Vaultwarden Update Procedure](#vaultwarden-update-procedure)
+13. [Common Configuration Steps](#common-configuration-steps)
+
+---
+
+## Requirements to Execution Mapping
+
+This section maps requirements from [spec.md](spec.md) to execution steps in this guide. Use this table to find where each requirement is implemented.
+
+| spec.md Requirement | plan.md Execution Location | Notes |
+|---------------------|---------------------------|-------|
+| **Section 3.1: Infrastructure Requirements** |
+| 2 vCPU, 4GB RAM, Ubuntu 22.04 | **Automated**: [Step 1: Terraform Setup](#step-1-terraform-setup) - `terraform.tfvars`<br>**Manual**: [Pre-Deployment Checklist](#pre-deployment-checklist) | VM specifications configured in Terraform or pre-provisioned |
+| Ports 80/443 only | **Automated**: [Step 1: Terraform Setup](#step-1-terraform-setup) (cloud-init.sh via Terraform)<br>**Manual**: [Step 1: Initial Server Setup](#step-1-initial-server-setup) (setup.sh) | Firewall configured automatically |
+| SQLite accessible for backup | **Automated**: [Step 1: Terraform Setup](#step-1-terraform-setup) (cloud-init.sh installs sqlite3)<br>**Manual**: [Step 1: Initial Server Setup](#step-1-initial-server-setup) (setup.sh installs sqlite3) | sqlite3 CLI installed on host |
+| **Section 3.2: Directory Structure Requirements** |
+| `/opt/vaultwarden/` structure | **Automated**: [Step 1: Terraform Setup](#step-1-terraform-setup) (cloud-init.sh creates structure)<br>**Manual**: [Step 1: Initial Server Setup](#step-1-initial-server-setup) (setup.sh creates structure) | Directory structure created |
+| `.env` file 600 permissions | **Automated**: [Step 3: Post-Infrastructure Configuration](#step-3-post-infrastructure-configuration) (CI/CD sets permissions)<br>**Manual**: [Step 2: Configuration](#step-2-configuration) | Permissions set in both methods |
+| **Section 3.3: Service Requirements** |
+| Vaultwarden with version pinning | **Automated**: [Step 1: Terraform Setup](#step-1-terraform-setup) (docker-compose.yml.template)<br>**Manual**: [Step 5: Deploy Services](#step-5-deploy-services) (docker-compose.yml) | Configured in docker-compose.yml |
+| Caddy with SSL automation | **Automated**: [Step 1: Terraform Setup](#step-1-terraform-setup) (Caddyfile.template)<br>**Manual**: [Step 5: Deploy Services](#step-5-deploy-services) (Caddyfile) | Configured in Caddyfile |
+| Watchtower (Caddy only) | **Automated**: [Step 1: Terraform Setup](#step-1-terraform-setup) (docker-compose.yml.template)<br>**Manual**: [Step 5: Deploy Services](#step-5-deploy-services) (docker-compose.yml) | Watchtower configured with Vaultwarden exclusion |
+| Environment variables | **Automated**: [Step 3: Post-Infrastructure Configuration](#step-3-post-infrastructure-configuration) (CI/CD generates .env)<br>**Manual**: [Step 2: Configuration](#step-2-configuration) | Environment variables configured |
+| **Section 3.4: Security Requirements** |
+| Firewall (UFW) | **Automated**: [Step 1: Terraform Setup](#step-1-terraform-setup) (cloud-init.sh)<br>**Manual**: [Step 1: Initial Server Setup](#step-1-initial-server-setup) (setup.sh) | Network security |
+| SSL/TLS automatic | **Automated**: [Step 1: Terraform Setup](#step-1-terraform-setup) (Caddyfile.template)<br>**Manual**: [Step 5: Deploy Services](#step-5-deploy-services) (Caddyfile) | Let's Encrypt |
+| Security headers | **Automated**: [Step 1: Terraform Setup](#step-1-terraform-setup) (Caddyfile.template)<br>**Manual**: [Step 5: Deploy Services](#step-5-deploy-services) (Caddyfile) | HTTP headers |
+| **Section 3.5: Deployment Method Requirements** |
+| Terraform IaC | **Automated**: [Step 1: Terraform Setup](#step-1-terraform-setup) | Infrastructure provisioning |
+| CI/CD pipeline | **Automated**: [Step 2: CI/CD Pipeline Setup](#step-2-cicd-pipeline-setup) | Application deployment |
+| Manual deployment | **Manual**: [Steps 1-9](#manual-deployment-alternative) | Alternative method |
+| **Section 3.6: Resource Management Requirements** |
+| Resource tagging | **Automated**: [Step 1: Terraform Setup](#step-1-terraform-setup) (Terraform tags resources)<br>**Manual**: [Step 9: Resource Tagging & Cost Monitoring](#step-9-resource-tagging--cost-monitoring) | Cost tracking |
+| Cost monitoring | **Automated**: [Step 4: Verification & Cost Monitoring](#step-4-verification--cost-monitoring)<br>**Manual**: [Step 9: Resource Tagging & Cost Monitoring](#step-9-resource-tagging--cost-monitoring) | Budget alerts |
+| **Section 3.7: Post-Deployment Requirements** |
+| Admin account creation | **Both**: [Post-Deployment Verification](#post-deployment-verification) (Common Configuration Steps) | Initial setup |
+| Backup automation | **Automated**: [Step 3: Post-Infrastructure Configuration](#step-3-post-infrastructure-configuration) (CI/CD deploys backup.sh)<br>**Manual**: [Step 7: Backup Automation](#step-7-backup-automation) | Crontab configuration |
+| Health monitoring | **Automated**: [Step 3: Post-Infrastructure Configuration](#step-3-post-infrastructure-configuration) (CI/CD deploys health-check.sh)<br>**Manual**: [Step 8: Health Monitoring](#step-8-health-monitoring-optional) | Health check script |
+| **Section 4: Security Specification** |
+| Firewall configuration | **Automated**: [Step 1: Terraform Setup](#step-1-terraform-setup)<br>**Manual**: [Step 1: Initial Server Setup](#step-1-initial-server-setup) | UFW setup |
+| SSL/TLS configuration | **Automated**: [Step 1: Terraform Setup](#step-1-terraform-setup)<br>**Manual**: [Step 5: Deploy Services](#step-5-deploy-services) | Caddy configuration |
+| Signup restrictions | **Automated**: [Step 1: Terraform Setup](#step-1-terraform-setup) (docker-compose.yml.template)<br>**Manual**: [Step 5: Deploy Services](#step-5-deploy-services) (docker-compose.yml) | SIGNUPS_ALLOWED=false |
+| **Section 5: Data Protection (Backup & Disaster Recovery)** |
+| Backup process | **Automated**: [Step 3: Post-Infrastructure Configuration](#step-3-post-infrastructure-configuration) (backup.sh.template deployed)<br>**Manual**: [Step 7: Backup Automation](#step-7-backup-automation) (backup.sh) | Backup script implements requirements |
+| Backup encryption | **Automated**: [Step 3: Post-Infrastructure Configuration](#step-3-post-infrastructure-configuration) (backup.sh.template)<br>**Manual**: [Step 7: Backup Automation](#step-7-backup-automation) (backup.sh) | GPG encryption |
+| Disaster recovery | **Both**: [Disaster Recovery](#disaster-recovery) section | restore.sh script |
+| Backup verification | **Both**: [Disaster Recovery → Backup Verification](#backup-verification) | Verification procedure |
+| **Section 6: Maintenance & Automation Strategy** |
+| Watchtower configuration | **Automated**: [Step 1: Terraform Setup](#step-1-terraform-setup) (docker-compose.yml.template)<br>**Manual**: [Step 5: Deploy Services](#step-5-deploy-services) (docker-compose.yml) | Container updates |
+| Vaultwarden updates | **Both**: [Vaultwarden Update Procedure](#vaultwarden-update-procedure) | Manual update process |
+| Health checks | **Automated**: [Step 3: Post-Infrastructure Configuration](#step-3-post-infrastructure-configuration) (health-check.sh.template deployed)<br>**Manual**: [Step 8: Health Monitoring](#step-8-health-monitoring-optional) | health-check.sh script |
+
+---
 
 ## Deployment Methods
 
@@ -8,6 +91,8 @@ This checklist supports two deployment approaches:
 
 1. **Automated Deployment (Recommended)**: Using Infrastructure as Code (Terraform) and CI/CD pipelines
 2. **Manual Deployment**: Step-by-step manual setup on a pre-provisioned VM
+
+**Note**: Both deployment methods share some common configuration steps. When you encounter a step that references "Common Configuration Steps", see the [Common Configuration Steps](#common-configuration-steps) section at the end of this document.
 
 ---
 
@@ -62,12 +147,13 @@ This checklist supports two deployment approaches:
 - [ ] **Important**: The `azure.tf` file references this script via `templatefile("${path.module}/scripts/cloud-init.sh", {...})`, so it must exist before running `terraform plan`
 
 **Create Deployment Templates:**
-- [ ] Create templates directory: `mkdir -p infrastructure/terraform/templates`
-- [ ] Create `infrastructure/terraform/templates/docker-compose.yml.template` - Copy from [Templates Reference - Docker Compose Template](#docker-compose-template-docker-composeymltemplate)
-- [ ] Create `infrastructure/terraform/templates/Caddyfile.template` - Copy from [Templates Reference - Caddyfile Template](#caddyfile-template-caddyfiletemplate)
-- [ ] Create `infrastructure/terraform/templates/backup.sh.template` - Copy from [Templates Reference - Backup Script Template](#backup-script-template-backupshtemplate) or [Manual Deployment - Backup Script](#backup-script-optvaultwardenscriptsbackupsh)
-- [ ] Create `infrastructure/terraform/templates/health-check.sh.template` - Copy from [Templates Reference - Health Check Script Template](#health-check-script-template-health-checkshtemplate)
-- [ ] Create `infrastructure/terraform/templates/.env.template` - Copy from [Templates Reference - Environment Variables Template](#environment-variables-template-envtemplate)
+- [ ] Create templates directory: `mkdir -p infrastructure/templates`
+- [ ] Create `infrastructure/templates/docker-compose.yml.template` - Copy from [Templates Reference - Docker Compose Template](#docker-compose-template-docker-composeymltemplate)
+- [ ] Create `infrastructure/templates/Caddyfile.template` - Copy from [Templates Reference - Caddyfile Template](#caddyfile-template-caddyfiletemplate)
+- [ ] Create `infrastructure/templates/backup.sh.template` - Copy from [Templates Reference - Backup Script Template](#backup-script-template-backupshtemplate)
+- [ ] Create `infrastructure/templates/health-check.sh.template` - Copy from [Templates Reference - Health Check Script Template](#health-check-script-template-health-checkshtemplate)
+- [ ] Create `infrastructure/templates/.env.template` - Copy from [Templates Reference - Environment Variables Template](#environment-variables-template-envtemplate)
+- [ ] Create `infrastructure/templates/tag-resources.sh.template` - Copy from [Templates Reference - Resource Tagging Script Template](#resource-tagging-script-template-tag-resourcesshtemplate)
 - [ ] **Note**: These templates will be used by both CI/CD pipeline and manual deployment to generate deployment files with environment-specific values. See [Templates Reference](#templates-reference) section for complete template content.
 
 **Create Variable Values File:**
@@ -115,28 +201,17 @@ This checklist supports two deployment approaches:
 
 ### Step 3: Post-Infrastructure Configuration
 
-**Note**: The CI/CD pipeline automatically handles most configuration steps. Manual steps are only required for Rclone configuration.
-
-**⚠️ IMPORTANT - DNS Configuration Timing:**
-- DNS must be configured **immediately after Terraform apply** and **before** the CI/CD pipeline runs
-- Caddy requires DNS to be properly configured to obtain SSL certificates from Let's Encrypt
-- If DNS is not configured, the CI/CD pipeline will fail during SSL certificate acquisition
-
-**⚠️ IMPORTANT - Rclone Configuration:**
-- Rclone configuration **must be completed before** the CI/CD pipeline can deploy backup automation
-- This step cannot be fully automated as it requires interactive authentication with Google Drive
-- The CI/CD pipeline will fail if Rclone is not configured when it tries to deploy backup scripts
+**Note**: The CI/CD pipeline automatically handles most configuration steps. Manual steps are only required for DNS and Rclone configuration.
 
 **Estimated Time**: 15-20 minutes (DNS propagation: 5-15 minutes, Rclone config: 5 minutes)
 
 - [ ] Get VM public IP from Terraform output: `terraform output vm_public_ip`
-- [ ] **Update DNS A record to point to VM IP** (do this immediately after Terraform apply)
-- [ ] Wait for DNS propagation (check: `nslookup your-domain.com`)
-  - **Troubleshooting**: If DNS doesn't resolve, see [Troubleshooting Guide - DNS Issues](docs/troubleshooting.md#dns-issues)
-- [ ] **Configure Rclone** (manual step required): SSH into VM and run `rclone config`
-  - This step cannot be fully automated as it requires interactive authentication
-  - After Rclone is configured, the CI/CD pipeline will handle the rest
-  - **Troubleshooting**: If Rclone configuration fails, see [Troubleshooting Guide - Rclone Issues](docs/troubleshooting.md#rclone-issues)
+- [ ] **Configure DNS**: Follow [DNS Configuration](#dns-configuration) steps in Common Configuration Steps
+  - **Important**: DNS must be configured **immediately after Terraform apply** and **before** CI/CD pipeline runs
+  - Use the VM IP from step above
+- [ ] **Configure Rclone**: Follow [Rclone Configuration](#rclone-configuration) steps in Common Configuration Steps
+  - **Important**: Rclone must be configured **before** CI/CD pipeline can deploy backup automation
+  - The CI/CD pipeline will fail if Rclone is not configured when it tries to deploy backup scripts
 - [ ] Push code to trigger CI/CD pipeline (or wait for automatic trigger)
 - [ ] Monitor pipeline execution - it will automatically:
   - Generate `.env` file with secrets (admin token, encryption key)
@@ -150,33 +225,22 @@ This checklist supports two deployment approaches:
 
 **Estimated Time**: 20-30 minutes
 
-**Service Verification:**
 - [ ] Verify CI/CD pipeline completed successfully (check GitHub Actions)
   - **Troubleshooting**: If pipeline failed, see [Troubleshooting Guide - CI/CD Issues](docs/troubleshooting.md#cicd-issues)
-- [ ] Access admin panel: `https://your-domain.com/admin`
-- [ ] Verify HTTPS working (automatic via Caddy)
-  - **Troubleshooting**: If HTTPS fails, see [Troubleshooting Guide - SSL Certificate Issues](docs/troubleshooting.md#ssl-certificate-issues)
-- [ ] Create first user account via admin panel (using `ADMIN_TOKEN` from `.env`)
-- [ ] Test login from Bitwarden client
-- [ ] Verify backup automation is configured (check crontab: `crontab -l`)
-- [ ] Verify health monitoring is configured (check crontab: `crontab -l`)
-- [ ] Test backup manually: `ssh into VM && /opt/vaultwarden/scripts/backup.sh`
-- [ ] Verify backup in Google Drive: `rclone ls gdrive:vaultwarden-backups/`
-
-**Cost Monitoring Setup:**
-- [ ] Navigate to Azure Portal → Cost Management + Billing
-- [ ] Create budget alert at ₹4,000 (89% of monthly credits) - early warning
-- [ ] Create critical alert at ₹4,400 (98% of monthly credits) - immediate action needed
-- [ ] Set up email notifications
-- [ ] Configure daily cost reports
-- [ ] Verify tag-based cost tracking (use Azure CLI):
-  ```bash
-  az consumption usage list \
-    --start-date $(date -d "1 month ago" +%Y-%m-%d) \
-    --end-date $(date +%Y-%m-%d) \
-    --query "[?tags.Project=='password-manager']"
-  ```
-- [ ] For detailed cost analysis and optimization strategies, see [Cost Analysis](docs/cost-analysis.md)
+- [ ] **Post-Deployment Verification**: Follow [Post-Deployment Verification](#post-deployment-verification) steps in Common Configuration Steps
+- [ ] **Cost Monitoring Setup**: Navigate to Azure Portal → Cost Management + Billing
+  - [ ] Create budget alert at ₹4,000 (89% of monthly credits) - early warning
+  - [ ] Create critical alert at ₹4,400 (98% of monthly credits) - immediate action needed
+  - [ ] Set up email notifications
+  - [ ] Configure daily cost reports
+  - [ ] Verify tag-based cost tracking (use Azure CLI):
+    ```bash
+    az consumption usage list \
+      --start-date $(date -d "1 month ago" +%Y-%m-%d) \
+      --end-date $(date +%Y-%m-%d) \
+      --query "[?tags.Project=='password-manager']"
+    ```
+  - [ ] For detailed cost analysis and optimization strategies, see [Cost Analysis](docs/cost-analysis.md)
 
 ### Step 5: Ongoing Operations
 
@@ -204,7 +268,7 @@ This checklist supports two deployment approaches:
 
 ### Deployment Steps
 
-### 1. Initial Server Setup
+### Step 1: Initial Server Setup
 
 **Estimated Time**: 20-30 minutes
 
@@ -212,18 +276,7 @@ This checklist supports two deployment approaches:
 
 - [ ] SSH into VM: `ssh username@vm-ip-address`
 - [ ] Create scripts directory: `mkdir -p /opt/vaultwarden/scripts`
-- [ ] Create setup script: Create file `/opt/vaultwarden/scripts/setup.sh` with the content below
-- [ ] Make setup script executable: `chmod +x /opt/vaultwarden/scripts/setup.sh`
-- [ ] Navigate to deployment directory: `cd /opt/vaultwarden`
-- [ ] Run setup script: `./scripts/setup.sh`
-- [ ] Verify Docker installed: `docker --version`
-- [ ] Verify Docker Compose installed: `docker-compose --version`
-- [ ] Verify Rclone installed: `rclone version`
-- [ ] Verify firewall is configured: `sudo ufw status verbose`
-
-**Create Setup Script (`/opt/vaultwarden/scripts/setup.sh`):**
-
-Create this file on the VM before running it. You can use `nano`, `vi`, or copy-paste the content:
+- [ ] Create setup script: Create file `/opt/vaultwarden/scripts/setup.sh` with the following content (you can use `nano`, `vi`, or copy-paste):
 
 ```bash
 #!/bin/bash
@@ -281,182 +334,92 @@ echo "3. Set up GPG encryption key"
 echo "4. Run: cd /opt/vaultwarden && docker-compose up -d"
 ```
 
-### 2. Configuration
+- [ ] Make setup script executable: `chmod +x /opt/vaultwarden/scripts/setup.sh`
+- [ ] Navigate to deployment directory: `cd /opt/vaultwarden`
+- [ ] Run setup script: `./scripts/setup.sh`
+- [ ] Verify Docker installed: `docker --version`
+- [ ] Verify Docker Compose installed: `docker-compose --version`
+- [ ] Verify Rclone installed: `rclone version`
+- [ ] Verify firewall is configured: `sudo ufw status verbose`
+
+### Step 2: Configuration
 
 **Estimated Time**: 10-15 minutes
 
-- [ ] Copy `.env.example` to `.env`: `cp .env.example .env`
-- [ ] Generate admin token: `openssl rand -base64 48`
-- [ ] Update `.env` with domain: `DOMAIN=https://your-domain.com`
-- [ ] Update `.env` with admin token: `ADMIN_TOKEN=<generated-token>`
-- [ ] Generate backup encryption key: `openssl rand -base64 32`
-- [ ] Update `.env` with encryption key: `BACKUP_ENCRYPTION_KEY=<generated-key>`
-- [ ] Set file permissions: `chmod 600 .env`
+**⚠️ Prerequisite**: Ensure the repository is cloned on the VM (or templates are available at `infrastructure/templates/`)
 
-### 3. Rclone Configuration
+- [ ] Navigate to deployment directory: `cd /opt/vaultwarden`
+- [ ] Generate secrets:
+  ```bash
+  ADMIN_TOKEN=$(openssl rand -base64 48)
+  BACKUP_ENCRYPTION_KEY=$(openssl rand -base64 32)
+  ```
+- [ ] Set your domain: `DOMAIN=https://your-domain.com` (replace with your actual domain)
+- [ ] Generate `.env` from template:
+  ```bash
+  sed -e "s|{{ADMIN_TOKEN}}|${ADMIN_TOKEN}|g" \
+      -e "s|{{DOMAIN}}|${DOMAIN}|g" \
+      -e "s|{{BACKUP_ENCRYPTION_KEY}}|${BACKUP_ENCRYPTION_KEY}|g" \
+      infrastructure/templates/.env.template > .env
+  chmod 600 .env
+  ```
+- [ ] Verify `.env` file exists and has correct permissions: `ls -la .env`
+
+### Step 3: Rclone Configuration
 
 **Estimated Time**: 5-10 minutes
 
-**⚠️ IMPORTANT**: Rclone configuration is required before backup automation can work.
+- [ ] **Rclone Configuration**: Follow [Rclone Configuration](#rclone-configuration) steps in Common Configuration Steps
 
-- [ ] Configure Rclone: `rclone config`
-  - **Troubleshooting**: If Rclone configuration fails, see [Troubleshooting Guide - Rclone Issues](docs/troubleshooting.md#rclone-issues)
-- [ ] Create remote named `gdrive` (or update `RCLONE_REMOTE_NAME` in `.env`)
-- [ ] Test connection: `rclone lsd gdrive:`
-- [ ] Create backup directory: `rclone mkdir gdrive:vaultwarden-backups`
-
-### 4. DNS Configuration
+### Step 4: DNS Configuration
 
 **Estimated Time**: 5-15 minutes (DNS propagation time varies)
 
-- [ ] Get VM public IP address
-  - **Troubleshooting**: If DNS doesn't resolve, see [Troubleshooting Guide - DNS Issues](docs/troubleshooting.md#dns-issues)
-- [ ] Create/update DNS A record pointing to VM IP
-- [ ] Wait for DNS propagation (check: `nslookup your-domain.com`)
-- [ ] Verify DNS: `dig your-domain.com`
+- [ ] Get VM public IP address (from Azure Portal or `az vm list-ip-addresses`)
+- [ ] **DNS Configuration**: Follow [DNS Configuration](#dns-configuration) steps in Common Configuration Steps
+  - Use the VM IP from step above
 
-### 5. Deploy Services
+### Step 5: Deploy Services
 
 **Estimated Time**: 10-15 minutes
 
 **⚠️ Troubleshooting**: If services fail to start, see [Troubleshooting Guide - Container Issues](docs/troubleshooting.md#container-issues)
 
-- [ ] Create `docker-compose.yml` at `/opt/vaultwarden/` (see Docker Compose Configuration below)
-- [ ] Create `caddy/Caddyfile` at `/opt/vaultwarden/caddy/` (see Caddyfile Configuration below)
-- [ ] Update Caddyfile with your domain
+**⚠️ Prerequisite**: Ensure the repository is cloned on the VM (or templates are available at `infrastructure/templates/`)
+
+- [ ] Navigate to deployment directory: `cd /opt/vaultwarden`
+- [ ] Source environment variables: `source .env` (loads DOMAIN and ADMIN_TOKEN)
+- [ ] Generate `docker-compose.yml` from template:
+  ```bash
+  sed -e "s|{{DOMAIN}}|${DOMAIN}|g" \
+      infrastructure/templates/docker-compose.yml.template > docker-compose.yml
+  ```
+- [ ] Generate `Caddyfile` from template:
+  ```bash
+  DOMAIN_NAME=$(echo ${DOMAIN} | sed 's|https\?://||')
+  mkdir -p caddy
+  sed "s|{{DOMAIN_NAME}}|${DOMAIN_NAME}|g" \
+      infrastructure/templates/Caddyfile.template > caddy/Caddyfile
+  ```
 - [ ] Start services: `docker-compose up -d`
 - [ ] Verify containers running: `docker-compose ps`
 
-**Docker Compose Configuration (`docker-compose.yml`):**
-
-```yaml
-version: '3.8'
-
-services:
-  vaultwarden:
-    image: vaultwarden/server:1.30.0  # Pin to specific stable version (check https://github.com/dani-garcia/vaultwarden/releases for latest)
-    container_name: vaultwarden
-    restart: unless-stopped
-    environment:
-      - WEBSOCKET_ENABLED=true
-      - SIGNUPS_ALLOWED=false
-      - DOMAIN=https://your-domain.com
-      - ADMIN_TOKEN=${ADMIN_TOKEN}
-      - DATABASE_URL=/data/db.sqlite3
-    volumes:
-      - ./vaultwarden/data:/data
-    networks:
-      - vaultwarden-network
-    labels:
-      - "com.centurylinklabs.watchtower.enable=false"  # Disabled: Vaultwarden uses version pinning for controlled updates
-
-  caddy:
-    image: caddy:latest
-    container_name: caddy
-    restart: unless-stopped
-    ports:
-      - "80:80"
-      - "443:443"
-      - "443:443/udp"
-    volumes:
-      - ./caddy/Caddyfile:/etc/caddy/Caddyfile
-      - ./caddy/data:/data
-      - ./caddy/config:/config
-    networks:
-      - vaultwarden-network
-    depends_on:
-      - vaultwarden
-    labels:
-      - "com.centurylinklabs.watchtower.enable=true"
-
-  watchtower:
-    image: containrrr/watchtower:latest
-    container_name: watchtower
-    restart: unless-stopped
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
-    environment:
-      - WATCHTOWER_CLEANUP=true
-      - WATCHTOWER_POLL_INTERVAL=86400
-      - WATCHTOWER_INCLUDE_STOPPED=false
-      - WATCHTOWER_REVIVE_STOPPED=false
-    command: --interval 86400
-
-networks:
-  vaultwarden-network:
-    driver: bridge
-```
-
-**Caddyfile Configuration (`caddy/Caddyfile`):**
-
-```
-your-domain.com {
-    # Automatic HTTPS with Let's Encrypt
-    encode zstd gzip
-    
-    # Security headers
-    header {
-        # Enable HSTS
-        Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
-        # Prevent clickjacking
-        X-Frame-Options "DENY"
-        # XSS protection
-        X-Content-Type-Options "nosniff"
-        # Referrer policy
-        Referrer-Policy "strict-origin-when-cross-origin"
-    }
-    
-    # Rate limiting
-    rate_limit {
-        zone dynamic {
-            key {remote_host}
-            events 50
-            window 1m
-        }
-    }
-    
-    # Reverse proxy to Vaultwarden
-    reverse_proxy vaultwarden:80 {
-        header_up X-Real-IP {remote_host}
-        header_up X-Forwarded-For {remote_host}
-        header_up X-Forwarded-Proto {scheme}
-    }
-    
-    # WebSocket support for real-time sync
-    reverse_proxy /notifications/hub vaultwarden:3012 {
-        transport http {
-            versions h2c
-        }
-    }
-}
-
-# Redirect HTTP to HTTPS
-http://your-domain.com {
-    redir https://your-domain.com{uri} permanent
-}
-```
-
 **Note**: For Nginx alternative configuration, see [Reverse Proxy Comparison](docs/reverse-proxy-comparison.md).
 
-### 6. Post-Deployment Verification
+### Step 6: Post-Deployment Verification
 
 **Estimated Time**: 15-20 minutes
 
-- [ ] Access admin panel: `https://your-domain.com/admin`
-  - **Troubleshooting**: If admin panel is inaccessible, see [Troubleshooting Guide - Access Issues](docs/troubleshooting.md#access-issues)
-- [ ] Verify HTTPS working (green lock icon)
-- [ ] Create first user account via admin panel
-- [ ] Test login from Bitwarden client
-- [ ] Verify signups disabled (attempt public signup should fail)
-- [ ] Check container logs: `docker-compose logs -f`
+- [ ] **Post-Deployment Verification**: Follow [Post-Deployment Verification](#post-deployment-verification) steps in Common Configuration Steps
 
-### 7. Backup Automation
+### Step 7: Backup Automation
 
 **Estimated Time**: 10-15 minutes
 
-**Option A: Using Templates (Recommended - if repository is cloned on VM):**
+**⚠️ Prerequisite**: Ensure the repository is cloned on the VM (or templates are available at `infrastructure/templates/`)
+
 - [ ] Create scripts directory: `mkdir -p /opt/vaultwarden/scripts`
-- [ ] Copy backup script from template: `cp infrastructure/terraform/templates/backup.sh.template /opt/vaultwarden/scripts/backup.sh`
+- [ ] Copy backup script from template: `cp infrastructure/templates/backup.sh.template /opt/vaultwarden/scripts/backup.sh`
 - [ ] Make executable: `chmod +x /opt/vaultwarden/scripts/backup.sh`
 - [ ] Test backup manually: `cd /opt/vaultwarden && ./scripts/backup.sh`
 - [ ] Verify backup in Google Drive: `rclone ls gdrive:vaultwarden-backups/`
@@ -465,134 +428,20 @@ http://your-domain.com {
   0 2 * * * /opt/vaultwarden/scripts/backup.sh >> /var/log/vaultwarden-backup.log 2>&1
   ```
 
-**Option B: Manual Creation (Alternative - if templates not available):**
-- [ ] Create scripts directory (if not exists): `mkdir -p /opt/vaultwarden/scripts`
-- [ ] Create backup script: Create file `/opt/vaultwarden/scripts/backup.sh` with the content below
-- [ ] Make executable: `chmod +x /opt/vaultwarden/scripts/backup.sh`
-- [ ] Test backup manually: `cd /opt/vaultwarden && ./scripts/backup.sh`
-- [ ] Verify backup in Google Drive: `rclone ls gdrive:vaultwarden-backups/`
-- [ ] Add to crontab: `crontab -e`
-  ```bash
-  0 2 * * * /opt/vaultwarden/scripts/backup.sh >> /var/log/vaultwarden-backup.log 2>&1
-  ```
+**Note**: The backup encryption key should already be set in `.env` from Step 2. If you need to set it up separately, see [Backup Encryption Key Setup](#backup-encryption-key-setup) in Common Configuration Steps.
 
-**Backup Script (`/opt/vaultwarden/scripts/backup.sh`):**
-
-Create this file on the VM if not using templates. Copy the content below:
-
-```bash
-#!/bin/bash
-set -e
-
-# Configuration
-BACKUP_DIR="/opt/vaultwarden/backups"
-VAULTWARDEN_DATA="/opt/vaultwarden/vaultwarden/data"
-RCLONE_REMOTE="${RCLONE_REMOTE_NAME:-gdrive}"
-RETENTION_DAYS="${BACKUP_RETENTION_DAYS:-30}"
-ENCRYPTION_KEY="${BACKUP_ENCRYPTION_KEY}"
-
-# Timestamp for backup filename
-TIMESTAMP=$(date +%Y%m%d_%H%M%S)
-BACKUP_NAME="vaultwarden_backup_${TIMESTAMP}"
-BACKUP_PATH="${BACKUP_DIR}/${BACKUP_NAME}"
-
-# Create backup directory
-mkdir -p "${BACKUP_PATH}"
-
-# Backup SQLite database
-echo "[$(date)] Starting database backup..."
-sqlite3 "${VAULTWARDEN_DATA}/db.sqlite3" ".backup '${BACKUP_PATH}/db.sqlite3'"
-
-# Backup attachments
-echo "[$(date)] Starting attachments backup..."
-if [ -d "${VAULTWARDEN_DATA}/attachments" ]; then
-    tar -czf "${BACKUP_PATH}/attachments.tar.gz" -C "${VAULTWARDEN_DATA}" attachments
-fi
-
-# Create backup manifest
-cat > "${BACKUP_PATH}/manifest.json" <<EOF
-{
-    "timestamp": "${TIMESTAMP}",
-    "date": "$(date -Iseconds)",
-    "database": "db.sqlite3",
-    "attachments": "attachments.tar.gz",
-    "version": "1.0"
-}
-EOF
-
-# Create archive
-echo "[$(date)] Creating backup archive..."
-cd "${BACKUP_DIR}"
-tar -czf "${BACKUP_NAME}.tar.gz" "${BACKUP_NAME}"
-
-# Encrypt backup
-echo "[$(date)] Encrypting backup..."
-if [ -n "${ENCRYPTION_KEY}" ]; then
-    # Using GPG with passphrase
-    gpg --batch --yes --passphrase "${ENCRYPTION_KEY}" \
-        --symmetric --cipher-algo AES256 \
-        "${BACKUP_NAME}.tar.gz"
-    ENCRYPTED_FILE="${BACKUP_NAME}.tar.gz.gpg"
-else
-    # Using GPG with key ID
-    gpg --encrypt --recipient "${ENCRYPTION_KEY}" \
-        --output "${BACKUP_NAME}.tar.gz.gpg" \
-        "${BACKUP_NAME}.tar.gz"
-fi
-
-# Upload to Google Drive
-echo "[$(date)] Uploading to Google Drive..."
-rclone copy "${BACKUP_DIR}/${BACKUP_NAME}.tar.gz.gpg" \
-    "${RCLONE_REMOTE}:vaultwarden-backups/" \
-    --log-file="${BACKUP_DIR}/rclone.log"
-
-# Clean up local files
-echo "[$(date)] Cleaning up local files..."
-rm -rf "${BACKUP_PATH}"
-rm -f "${BACKUP_DIR}/${BACKUP_NAME}.tar.gz"
-rm -f "${BACKUP_DIR}/${BACKUP_NAME}.tar.gz.gpg"
-
-# Clean up old backups from Google Drive (retention policy)
-echo "[$(date)] Applying retention policy (${RETENTION_DAYS} days)..."
-rclone delete "${RCLONE_REMOTE}:vaultwarden-backups/" \
-    --min-age "${RETENTION_DAYS}d" \
-    --log-file="${BACKUP_DIR}/rclone.log"
-
-echo "[$(date)] Backup completed successfully"
-```
-
-**Backup Encryption Key Setup:**
-
-**Method 1: GPG with Passphrase**
-
-```bash
-# Generate encryption passphrase
-BACKUP_ENCRYPTION_KEY=$(openssl rand -base64 32)
-echo "BACKUP_ENCRYPTION_KEY=${BACKUP_ENCRYPTION_KEY}" >> .env
-```
-
-**Method 2: GPG with Key Pair**
-
-```bash
-# Generate GPG key pair
-gpg --full-generate-key
-# Export public key for backup
-gpg --export --armor your-email@example.com > backup-public-key.asc
-# Use key ID in .env
-BACKUP_ENCRYPTION_KEY=<key-id-from-gpg-list-keys>
-```
-
-### 8. Health Monitoring (Optional)
+### Step 8: Health Monitoring (Optional)
 
 **Estimated Time**: 5-10 minutes
 
-**Option A: Using Templates (Recommended - if repository is cloned on VM):**
+**⚠️ Prerequisite**: Ensure the repository is cloned on the VM (or templates are available at `infrastructure/templates/`)
+
+- [ ] Navigate to deployment directory: `cd /opt/vaultwarden`
+- [ ] Source environment variables: `source .env` (loads DOMAIN)
 - [ ] Generate health check script from template:
   ```bash
-  cd /opt/vaultwarden
-  source .env  # Load DOMAIN variable
   sed "s|{{DOMAIN}}|${DOMAIN}|g" \
-      infrastructure/terraform/templates/health-check.sh.template > scripts/health-check.sh
+      infrastructure/templates/health-check.sh.template > scripts/health-check.sh
   chmod +x scripts/health-check.sh
   ```
 - [ ] Test health check: `./scripts/health-check.sh`
@@ -601,71 +450,89 @@ BACKUP_ENCRYPTION_KEY=<key-id-from-gpg-list-keys>
   */15 * * * * /opt/vaultwarden/scripts/health-check.sh >> /var/log/vaultwarden-health.log 2>&1
   ```
 
-**Option B: Manual Creation (Alternative - if templates not available):**
-- [ ] Create health check script: Create file `/opt/vaultwarden/scripts/health-check.sh` with the content below
-- [ ] Make executable: `chmod +x /opt/vaultwarden/scripts/health-check.sh`
-- [ ] Test health check: `./scripts/health-check.sh`
-- [ ] Add to crontab (every 15 minutes):
+### Step 9: Resource Tagging & Cost Monitoring
+
+**Estimated Time**: 5-10 minutes
+
+**⚠️ Prerequisites**: 
+- Azure CLI installed and logged in (`az login`)
+- Resource group name where your VM is deployed
+- Owner email address for the Owner tag
+
+**⚠️ Note**: This script reuses the same tag structure as Terraform (see [Terraform Guide](docs/terraform-guide.md)) to ensure consistency between automated and manual deployments. The only difference is `ManagedBy=manual` instead of `ManagedBy=terraform`.
+
+**Resource Tagging (Using Script - Recommended):**
+
+- [ ] Navigate to deployment directory: `cd /opt/vaultwarden`
+- [ ] Ensure the repository is cloned on the VM (or templates are available at `infrastructure/templates/`)
+- [ ] Copy tagging script from template:
   ```bash
-  */15 * * * * /opt/vaultwarden/scripts/health-check.sh >> /var/log/vaultwarden-health.log 2>&1
+  cp infrastructure/templates/tag-resources.sh.template scripts/tag-resources.sh
+  chmod +x scripts/tag-resources.sh
+  ```
+- [ ] Run the tagging script:
+  ```bash
+  ./scripts/tag-resources.sh <resource-group-name> <your-email>
+  ```
+  Example:
+  ```bash
+  ./scripts/tag-resources.sh rg-password-manager-production user@example.com
+  ```
+- [ ] Verify tags were applied successfully (script will show summary)
+- [ ] (Optional) Verify tags in Azure Portal or using Azure CLI:
+  ```bash
+  az vm show --resource-group <resource-group-name> --name <vm-name> --query "tags" -o table
   ```
 
-**Health Check Script (`/opt/vaultwarden/scripts/health-check.sh`):**
+**Resource Tagging (Azure CLI - Fallback):**
 
-Create this file on the VM if not using templates. Copy the content below:
+If the script is not available, you can tag resources manually using Azure CLI commands. However, the script is recommended as it ensures consistency with Terraform's tag structure.
 
 ```bash
-#!/bin/bash
+# Tag VM (with VM-specific tags)
+az vm update --resource-group <resource-group-name> --name <vm-name> \
+  --set tags.Project=password-manager \
+       tags.Environment=production \
+       tags.Component=vaultwarden \
+       tags.ManagedBy=manual \
+       tags.CostCenter=personal \
+       tags.Backup=enabled \
+       tags.Owner=<your-email>
 
-DOMAIN="${DOMAIN:-https://your-domain.com}"
-ALERT_EMAIL="${ALERT_EMAIL}"
+# Tag other resources (with base tags)
+az disk update --resource-group <resource-group-name> --name <disk-name> \
+  --set tags.Project=password-manager tags.Environment=production tags.Component=infrastructure tags.ManagedBy=manual tags.CostCenter=personal
 
-# Check if service is responding
-HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" "${DOMAIN}")
+az network nic update --resource-group <resource-group-name> --name <nic-name> \
+  --set tags.Project=password-manager tags.Environment=production tags.Component=infrastructure tags.ManagedBy=manual tags.CostCenter=personal
 
-if [ "${HTTP_CODE}" != "200" ]; then
-    echo "[$(date)] Health check failed: HTTP ${HTTP_CODE}"
-    if [ -n "${ALERT_EMAIL}" ]; then
-        echo "Vaultwarden health check failed" | mail -s "Alert: Vaultwarden Down" "${ALERT_EMAIL}"
-    fi
-    exit 1
-fi
+az network public-ip update --resource-group <resource-group-name> --name <ip-name> \
+  --set tags.Project=password-manager tags.Environment=production tags.Component=infrastructure tags.ManagedBy=manual tags.CostCenter=personal
 
-# Check container status
-if ! docker ps | grep -q vaultwarden; then
-    echo "[$(date)] Health check failed: Container not running"
-    exit 1
-fi
+az network nsg update --resource-group <resource-group-name> --name <nsg-name> \
+  --set tags.Project=password-manager tags.Environment=production tags.Component=infrastructure tags.ManagedBy=manual tags.CostCenter=personal
 
-echo "[$(date)] Health check passed"
-exit 0
+az network vnet update --resource-group <resource-group-name> --name <vnet-name> \
+  --set tags.Project=password-manager tags.Environment=production tags.Component=infrastructure tags.ManagedBy=manual tags.CostCenter=personal
+
+az group update --name <resource-group-name> \
+  --set tags.Project=password-manager tags.Environment=production tags.Component=infrastructure tags.ManagedBy=manual tags.CostCenter=personal
 ```
 
-## Cost Monitoring Setup
-
-After deployment, set up cost monitoring to track resource usage:
-
-### Azure Cost Alerts
-
+**Cost Monitoring Setup:**
 - [ ] Navigate to Azure Portal → Cost Management + Billing
 - [ ] Create budget alert at ₹4,000 (89% of monthly credits) - early warning
 - [ ] Create critical alert at ₹4,400 (98% of monthly credits) - immediate action needed
 - [ ] Set up email notifications
 - [ ] Configure daily cost reports
-
-### Tag-based Cost Analysis
-
-Use Azure CLI to query costs by tag:
-
-```bash
-# Query costs by tag using Azure CLI
-az consumption usage list \
-  --start-date 2024-01-01 \
-  --end-date 2024-01-31 \
-  --query "[?tags.Project=='password-manager']"
-```
-
-For detailed cost analysis and optimization strategies, see [Cost Analysis](docs/cost-analysis.md).
+- [ ] Verify tag-based cost tracking (use Azure CLI):
+  ```bash
+  az consumption usage list \
+    --start-date $(date -d "1 month ago" +%Y-%m-%d) \
+    --end-date $(date +%Y-%m-%d) \
+    --query "[?tags.Project=='password-manager']"
+  ```
+- [ ] For detailed cost analysis and optimization strategies, see [Cost Analysis](docs/cost-analysis.md)
 
 ## Quick Reference Commands
 
@@ -707,21 +574,7 @@ docker-compose logs -f
 **Step 3: Execute Restore**
 
 - [ ] Create scripts directory (if not exists): `mkdir -p /opt/vaultwarden/scripts`
-- [ ] Create restore script: Create file `/opt/vaultwarden/scripts/restore.sh` with the content below
-- [ ] Make executable: `chmod +x /opt/vaultwarden/scripts/restore.sh`
-- [ ] Navigate to deployment directory: `cd /opt/vaultwarden`
-- [ ] Execute restore: `./scripts/restore.sh vaultwarden_backup_YYYYMMDD_HHMMSS.tar.gz.gpg`
-
-**Step 4: Verify Restore**
-
-- [ ] Access `https://your-domain.com`
-- [ ] Verify user accounts are present
-- [ ] Verify password entries are accessible
-- [ ] Check attachment storage
-
-**Restore Script (`/opt/vaultwarden/scripts/restore.sh`):**
-
-Create this file on the VM. Copy the content below:
+- [ ] Create restore script: Create file `/opt/vaultwarden/scripts/restore.sh` with the following content (you can use `nano`, `vi`, or copy-paste):
 
 ```bash
 #!/bin/bash
@@ -811,6 +664,17 @@ rm -f "${DOWNLOADED_FILE}" "${DECRYPTED_FILE}"
 echo "[$(date)] Restore completed successfully"
 echo "Vaultwarden is now running with restored data"
 ```
+
+- [ ] Make executable: `chmod +x /opt/vaultwarden/scripts/restore.sh`
+- [ ] Navigate to deployment directory: `cd /opt/vaultwarden`
+- [ ] Execute restore: `./scripts/restore.sh vaultwarden_backup_YYYYMMDD_HHMMSS.tar.gz.gpg`
+
+**Step 4: Verify Restore**
+
+- [ ] Access `https://your-domain.com`
+- [ ] Verify user accounts are present
+- [ ] Verify password entries are accessible
+- [ ] Check attachment storage
 
 ### Backup Verification
 
@@ -951,7 +815,7 @@ http://{{DOMAIN_NAME}} {
 
 ### Backup Script Template (`backup.sh.template`)
 
-See [Backup Script](#backup-script-optvaultwardenscriptsbackupsh) in Manual Deployment section for complete content. This template is used as-is without variable substitution.
+This template is used as-is without variable substitution. The complete content is available in the repository at `infrastructure/templates/backup.sh.template`.
 
 ### Health Check Script Template (`health-check.sh.template`)
 
@@ -999,6 +863,31 @@ BACKUP_RETENTION_DAYS=30
 - `{{ADMIN_TOKEN}}`: Strong random token (generate with `openssl rand -base64 48`)
 - `{{DOMAIN}}`: Full domain URL with https:// (e.g., `https://your-domain.com`)
 - `{{BACKUP_ENCRYPTION_KEY}}`: GPG passphrase or key ID (generate with `openssl rand -base64 32`)
+
+### Resource Tagging Script Template (`tag-resources.sh.template`)
+
+This script automates tagging of all Azure resources in a resource group, reusing the same tag structure as Terraform. The script accepts resource group name, owner email, and optional environment parameter.
+
+**Usage:**
+```bash
+# Basic usage (environment defaults to "production")
+./scripts/tag-resources.sh <resource-group-name> <owner-email>
+
+# With custom environment
+./scripts/tag-resources.sh <resource-group-name> <owner-email> staging
+```
+
+**Features:**
+- Automatically discovers and tags all resources: Resource Group, VM, Disk, NIC, Public IP, NSG, VNet
+- Uses same tag structure as Terraform (see [Terraform Guide](docs/terraform-guide.md))
+- Base tags: `Project=password-manager`, `Environment=<env>`, `Component=infrastructure`, `ManagedBy=manual`, `CostCenter=personal`
+- VM-specific tags: `Component=vaultwarden`, `Backup=enabled`, `Owner=<email>`
+- Includes error handling, validation, and progress reporting
+
+**Template Variables:**
+- This template is used as-is without variable substitution. The script accepts command-line parameters instead.
+
+**Note**: The complete script content is available in the repository at `infrastructure/templates/tag-resources.sh.template`. This script ensures consistency between automated (Terraform) and manual deployments by using the same tag structure.
 
 ---
 
@@ -1244,3 +1133,101 @@ docker inspect vaultwarden | grep -i image
 - Initial deployment: `1.30.0` (example - check actual latest version)
 - Last updated: [Date of last update]
 - Next check: [Schedule monthly review]
+
+---
+
+## Common Configuration Steps
+
+These steps are shared between both automated and manual deployment methods. Reference this section when your deployment method indicates to follow a common step.
+
+### DNS Configuration
+
+**Estimated Time**: 5-15 minutes (DNS propagation time varies)
+
+**⚠️ IMPORTANT - DNS Configuration Timing:**
+- DNS must be configured **immediately after** VM is provisioned and **before** services are deployed
+- Caddy requires DNS to be properly configured to obtain SSL certificates from Let's Encrypt
+- If DNS is not configured, SSL certificate acquisition will fail
+
+- [ ] Get VM public IP address (you should have this from your deployment step)
+- [ ] **Update DNS A record to point to VM IP** (do this immediately)
+- [ ] Wait for DNS propagation (check: `nslookup your-domain.com`)
+  - **Troubleshooting**: If DNS doesn't resolve, see [Troubleshooting Guide - DNS Issues](docs/troubleshooting.md#dns-issues)
+- [ ] Verify DNS: `dig your-domain.com` or `nslookup your-domain.com`
+- [ ] Verify DNS points to correct IP: `dig +short your-domain.com`
+
+### Rclone Configuration
+
+**Estimated Time**: 5-10 minutes
+
+**⚠️ IMPORTANT**: Rclone configuration is required before backup automation can work. This step cannot be fully automated as it requires interactive authentication with Google Drive.
+
+- [ ] SSH into VM: `ssh username@vm-ip-address`
+- [ ] Configure Rclone: `rclone config`
+  - **Troubleshooting**: If Rclone configuration fails, see [Troubleshooting Guide - Rclone Issues](docs/troubleshooting.md#rclone-issues)
+- [ ] Create remote named `gdrive` (or update `RCLONE_REMOTE_NAME` in `.env`)
+- [ ] Test connection: `rclone lsd gdrive:`
+- [ ] Create backup directory: `rclone mkdir gdrive:vaultwarden-backups`
+- [ ] Verify remote is accessible: `rclone ls gdrive:vaultwarden-backups/`
+
+### Environment Variables Setup
+
+**Estimated Time**: 10-15 minutes
+
+- [ ] Navigate to deployment directory: `cd /opt/vaultwarden`
+- [ ] Copy `.env.example` to `.env` (if available): `cp .env.example .env`
+- [ ] Generate admin token: `openssl rand -base64 48`
+- [ ] Update `.env` with domain: `DOMAIN=https://your-domain.com`
+- [ ] Update `.env` with admin token: `ADMIN_TOKEN=<generated-token>`
+- [ ] Generate backup encryption key: `openssl rand -base64 32`
+- [ ] Update `.env` with encryption key: `BACKUP_ENCRYPTION_KEY=<generated-key>`
+- [ ] Set file permissions: `chmod 600 .env`
+- [ ] Verify `.env` file exists and has correct permissions: `ls -la .env`
+
+**Backup Encryption Key Setup (Alternative Methods):**
+
+**Method 1: GPG with Passphrase** (Recommended for simplicity)
+```bash
+BACKUP_ENCRYPTION_KEY=$(openssl rand -base64 32)
+echo "BACKUP_ENCRYPTION_KEY=${BACKUP_ENCRYPTION_KEY}" >> .env
+```
+
+**Method 2: GPG with Key Pair** (Recommended for enhanced security)
+```bash
+# Generate GPG key pair
+gpg --full-generate-key
+# Export public key for backup
+gpg --export --armor your-email@example.com > backup-public-key.asc
+# Use key ID in .env
+BACKUP_ENCRYPTION_KEY=<key-id-from-gpg-list-keys>
+```
+
+### Post-Deployment Verification
+
+**Estimated Time**: 15-20 minutes
+
+**Directory Structure Verification:**
+- [ ] Verify directory structure exists: `ls -la /opt/vaultwarden/`
+- [ ] Verify required directories: `ls -la /opt/vaultwarden/{caddy,vaultwarden,scripts,backups}`
+- [ ] Verify directory ownership: `ls -ld /opt/vaultwarden` (should be owned by deployment user)
+- [ ] Verify `.env` file permissions: `ls -la /opt/vaultwarden/.env` (should be 600)
+
+**Service Verification:**
+- [ ] Access admin panel: `https://your-domain.com/admin`
+  - **Troubleshooting**: If admin panel is inaccessible, see [Troubleshooting Guide - Access Issues](docs/troubleshooting.md#access-issues)
+- [ ] Verify HTTPS working (green lock icon in browser)
+- [ ] Verify SSL certificate: `openssl s_client -connect your-domain.com:443 -servername your-domain.com | grep "Verify return code"`
+  - Should show "Verify return code: 0 (ok)"
+- [ ] Check certificate expiration: `echo | openssl s_client -connect your-domain.com:443 -servername your-domain.com 2>/dev/null | openssl x509 -noout -dates`
+- [ ] Create first user account via admin panel (using `ADMIN_TOKEN` from `.env`)
+- [ ] Test login from Bitwarden client
+- [ ] Verify signups disabled (attempt public signup should fail)
+- [ ] Verify WebSocket connection (check real-time sync in Bitwarden client)
+- [ ] Check container logs: `docker-compose logs -f`
+- [ ] Verify all containers running: `docker-compose ps` (all should show "Up")
+
+**Backup Verification:**
+- [ ] Verify backup automation is configured (check crontab: `crontab -l`)
+- [ ] Verify health monitoring is configured (check crontab: `crontab -l`)
+- [ ] Test backup manually: `cd /opt/vaultwarden && ./scripts/backup.sh`
+- [ ] Verify backup in Google Drive: `rclone ls gdrive:vaultwarden-backups/`
