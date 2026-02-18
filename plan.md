@@ -24,15 +24,21 @@ Step-by-step execution guide for deploying, operating, and maintaining the self-
    - [Step 7: Backup Automation](#step-7-backup-automation)
    - [Step 8: Health Monitoring (Optional)](#step-8-health-monitoring-optional)
    - [Step 9: Resource Tagging & Cost Monitoring](#step-9-resource-tagging--cost-monitoring)
-5. [Quick Reference Commands](#quick-reference-commands)
-6. [Disaster Recovery](#disaster-recovery)
-7. [Templates Reference](#templates-reference)
-8. [Rollback Procedures](#rollback-procedures)
-9. [Troubleshooting](#troubleshooting)
-10. [Next Steps](#next-steps)
-11. [Quick Reference: Automated vs Manual](#quick-reference-automated-vs-manual)
-12. [Vaultwarden Update Procedure](#vaultwarden-update-procedure)
-13. [Common Configuration Steps](#common-configuration-steps)
+5. [Disaster Recovery](#disaster-recovery)
+6. [Vaultwarden Update Procedure](#vaultwarden-update-procedure)
+7. [Rollback Procedures](#rollback-procedures)
+8. [Troubleshooting](#troubleshooting)
+9. [Next Steps after Successful Deployment](#next-steps-after-successful-deployment)
+10. [Quick Reference: Automated vs Manual](#quick-reference-automated-vs-manual)
+11. [Templates Reference](#templates-reference)
+    - [Docker Compose Template](#docker-compose-template-docker-composeymltemplate)
+    - [Caddyfile Template](#caddyfile-template-caddyfiletemplate)
+    - [Backup Script Template](#backup-script-template-backupshtemplate)
+    - [Restore Script](#restore-script-restoresh)
+    - [Health Check Script Template](#health-check-script-template-health-checkshtemplate)
+    - [Environment Variables Template](#environment-variables-template-envtemplate)
+    - [Resource Tagging Script](#resource-tagging-script-tag-resourcessh)
+12. [Common Configuration Steps](#common-configuration-steps)
 
 ---
 
@@ -153,7 +159,7 @@ This checklist supports two deployment approaches:
 - [ ] Create `infrastructure/templates/backup.sh.template` - Copy from [Templates Reference - Backup Script Template](#backup-script-template-backupshtemplate)
 - [ ] Create `infrastructure/templates/health-check.sh.template` - Copy from [Templates Reference - Health Check Script Template](#health-check-script-template-health-checkshtemplate)
 - [ ] Create `infrastructure/templates/.env.template` - Copy from [Templates Reference - Environment Variables Template](#environment-variables-template-envtemplate)
-- [ ] Create `infrastructure/templates/tag-resources.sh.template` - Copy from [Templates Reference - Resource Tagging Script Template](#resource-tagging-script-template-tag-resourcesshtemplate)
+- [ ] **Note**: The `tag-resources.sh.template` file will be created in `infrastructure/templates/` when the plan is executed. The script content is available in [Resource Tagging Script](#resource-tagging-script-tag-resourcessh) in Templates Reference section.
 - [ ] **Note**: These templates will be used by both CI/CD pipeline and manual deployment to generate deployment files with environment-specific values. See [Templates Reference](#templates-reference) section for complete template content.
 
 **Create Variable Values File:**
@@ -464,12 +470,9 @@ echo "4. Run: cd /opt/vaultwarden && docker-compose up -d"
 **Resource Tagging (Using Script - Recommended):**
 
 - [ ] Navigate to deployment directory: `cd /opt/vaultwarden`
-- [ ] Ensure the repository is cloned on the VM (or templates are available at `infrastructure/templates/`)
-- [ ] Copy tagging script from template:
-  ```bash
-  cp infrastructure/templates/tag-resources.sh.template scripts/tag-resources.sh
-  chmod +x scripts/tag-resources.sh
-  ```
+- [ ] Create scripts directory (if not exists): `mkdir -p scripts`
+- [ ] Create tagging script: Create file `scripts/tag-resources.sh` with the content from [Resource Tagging Script](#resource-tagging-script-tag-resourcessh) in Templates Reference section (you can use `nano`, `vi`, or copy-paste)
+- [ ] Make executable: `chmod +x scripts/tag-resources.sh`
 - [ ] Run the tagging script:
   ```bash
   ./scripts/tag-resources.sh <resource-group-name> <your-email>
@@ -534,25 +537,6 @@ az group update --name <resource-group-name> \
   ```
 - [ ] For detailed cost analysis and optimization strategies, see [Cost Analysis](docs/cost-analysis.md)
 
-## Quick Reference Commands
-
-```bash
-# Start services
-cd /opt/vaultwarden && docker-compose up -d
-
-# Stop services
-docker-compose stop
-
-# View logs
-docker-compose logs -f
-
-# Manual backup
-./scripts/backup.sh
-
-# Restore backup
-./scripts/restore.sh <backup-filename>
-```
-
 ## Disaster Recovery
 
 ### Restore Procedure
@@ -565,111 +549,24 @@ docker-compose logs -f
 - [ ] Configure Rclone: `rclone config`
 - [ ] Set encryption key in `.env`: `echo "BACKUP_ENCRYPTION_KEY=<your-key>" >> /opt/vaultwarden/.env`
 
-**Step 2: List Available Backups**
+**Step 2: Create Restore Script**
+
+- [ ] Create scripts directory (if not exists): `mkdir -p /opt/vaultwarden/scripts`
+- [ ] Create restore script: Create file `/opt/vaultwarden/scripts/restore.sh` with the content from [Restore Script](#restore-script-restoresh) in Templates Reference section (you can use `nano`, `vi`, or copy-paste)
+- [ ] Make executable: `chmod +x /opt/vaultwarden/scripts/restore.sh`
+
+**Step 3: List Available Backups**
 
 - [ ] Navigate to deployment directory: `cd /opt/vaultwarden`
 - [ ] Run restore script without arguments to list backups: `./scripts/restore.sh`
 - [ ] Note the backup filename you want to restore
 
-**Step 3: Execute Restore**
+**Step 4: Execute Restore**
 
-- [ ] Create scripts directory (if not exists): `mkdir -p /opt/vaultwarden/scripts`
-- [ ] Create restore script: Create file `/opt/vaultwarden/scripts/restore.sh` with the following content (you can use `nano`, `vi`, or copy-paste):
-
-```bash
-#!/bin/bash
-set -e
-
-# Configuration
-BACKUP_DIR="/opt/vaultwarden/backups"
-VAULTWARDEN_DATA="/opt/vaultwarden/vaultwarden/data"
-RCLONE_REMOTE="${RCLONE_REMOTE_NAME:-gdrive}"
-ENCRYPTION_KEY="${BACKUP_ENCRYPTION_KEY}"
-
-# Check if backup file is provided
-if [ -z "$1" ]; then
-    echo "Usage: $0 <backup-filename> [restore-path]"
-    echo ""
-    echo "Available backups:"
-    rclone lsf "${RCLONE_REMOTE}:vaultwarden-backups/" | grep "\.gpg$"
-    exit 1
-fi
-
-BACKUP_FILE="$1"
-RESTORE_PATH="${2:-${BACKUP_DIR}}"
-
-# Download backup from Google Drive
-echo "[$(date)] Downloading backup from Google Drive..."
-mkdir -p "${RESTORE_PATH}"
-rclone copy "${RCLONE_REMOTE}:vaultwarden-backups/${BACKUP_FILE}" \
-    "${RESTORE_PATH}/" \
-    --log-file="${RESTORE_PATH}/rclone-restore.log"
-
-DOWNLOADED_FILE="${RESTORE_PATH}/${BACKUP_FILE}"
-
-# Decrypt backup
-echo "[$(date)] Decrypting backup..."
-DECRYPTED_FILE="${DOWNLOADED_FILE%.gpg}"
-if [ -n "${ENCRYPTION_KEY}" ]; then
-    # Using GPG with passphrase
-    gpg --batch --yes --passphrase "${ENCRYPTION_KEY}" \
-        --decrypt "${DOWNLOADED_FILE}" > "${DECRYPTED_FILE}"
-else
-    # Using GPG with key
-    gpg --decrypt --output "${DECRYPTED_FILE}" "${DOWNLOADED_FILE}"
-fi
-
-# Extract backup
-echo "[$(date)] Extracting backup..."
-EXTRACT_DIR="${RESTORE_PATH}/restore_$(date +%Y%m%d_%H%M%S)"
-mkdir -p "${EXTRACT_DIR}"
-tar -xzf "${DECRYPTED_FILE}" -C "${EXTRACT_DIR}"
-
-# Find backup directory
-BACKUP_CONTENT=$(find "${EXTRACT_DIR}" -type d -name "vaultwarden_backup_*" | head -1)
-if [ -z "${BACKUP_CONTENT}" ]; then
-    echo "Error: Could not find backup content directory"
-    exit 1
-fi
-
-# Stop Vaultwarden container
-echo "[$(date)] Stopping Vaultwarden container..."
-cd /opt/vaultwarden
-docker-compose stop vaultwarden
-
-# Restore database
-echo "[$(date)] Restoring database..."
-if [ -f "${BACKUP_CONTENT}/db.sqlite3" ]; then
-    cp "${BACKUP_CONTENT}/db.sqlite3" "${VAULTWARDEN_DATA}/db.sqlite3"
-    chown -R $(id -u):$(id -g) "${VAULTWARDEN_DATA}/db.sqlite3"
-fi
-
-# Restore attachments
-echo "[$(date)] Restoring attachments..."
-if [ -f "${BACKUP_CONTENT}/attachments.tar.gz" ]; then
-    rm -rf "${VAULTWARDEN_DATA}/attachments"
-    tar -xzf "${BACKUP_CONTENT}/attachments.tar.gz" -C "${VAULTWARDEN_DATA}"
-    chown -R $(id -u):$(id -g) "${VAULTWARDEN_DATA}/attachments"
-fi
-
-# Start Vaultwarden container
-echo "[$(date)] Starting Vaultwarden container..."
-docker-compose start vaultwarden
-
-# Clean up
-echo "[$(date)] Cleaning up temporary files..."
-rm -rf "${EXTRACT_DIR}"
-rm -f "${DOWNLOADED_FILE}" "${DECRYPTED_FILE}"
-
-echo "[$(date)] Restore completed successfully"
-echo "Vaultwarden is now running with restored data"
-```
-
-- [ ] Make executable: `chmod +x /opt/vaultwarden/scripts/restore.sh`
 - [ ] Navigate to deployment directory: `cd /opt/vaultwarden`
 - [ ] Execute restore: `./scripts/restore.sh vaultwarden_backup_YYYYMMDD_HHMMSS.tar.gz.gpg`
 
-**Step 4: Verify Restore**
+**Step 5: Verify Restore**
 
 - [ ] Access `https://your-domain.com`
 - [ ] Verify user accounts are present
@@ -687,207 +584,112 @@ echo "Vaultwarden is now running with restored data"
 - [ ] Verify attachment files are present: `ls -la attachments/`
 - [ ] (Optional) Test restore on isolated test environment
 
-# Check health
-./scripts/health-check.sh
+---
 
-# Update containers
-docker-compose pull && docker-compose up -d
-```
+## Vaultwarden Update Procedure
 
-## Templates Reference
+Vaultwarden uses **version pinning** instead of automatic updates via Watchtower. This provides better control over when updates are applied, allowing you to review release notes and test updates before deploying to production.
 
-This section contains all template files referenced in both automated and manual deployment procedures. These templates are used to generate deployment files with environment-specific values.
+### Update Strategy
 
-### Docker Compose Template (`docker-compose.yml.template`)
+- **Current Configuration**: Vaultwarden image is pinned to a specific version (e.g., `vaultwarden/server:1.30.0`)
+- **Watchtower**: Disabled for Vaultwarden (only updates Caddy and Watchtower itself)
+- **Update Frequency**: Manual updates when stable releases or security patches are available
+- **Update Source**: Monitor [Vaultwarden GitHub Releases](https://github.com/dani-garcia/vaultwarden/releases)
 
-```yaml
-version: '3.8'
+### Step-by-Step Update Process
 
-services:
+**Step 1: Check for Updates**
+- [ ] Visit [Vaultwarden Releases](https://github.com/dani-garcia/vaultwarden/releases)
+- [ ] Review latest stable release notes
+- [ ] Check for security advisories or critical patches
+- [ ] Note the latest stable version number (e.g., `1.31.0`)
+
+**Step 2: Review Release Notes**
+- [ ] Read changelog for breaking changes
+- [ ] Check for database migration requirements
+- [ ] Review security fixes and improvements
+- [ ] Verify compatibility with your deployment
+
+**Step 3: Create Backup (Critical)**
+- [ ] Navigate to deployment directory: `cd /opt/vaultwarden`
+- [ ] Run backup script: `./scripts/backup.sh`
+- [ ] Verify backup uploaded to Google Drive: `rclone ls gdrive:vaultwarden-backups/ | tail -1`
+- [ ] **Important**: Always backup before updating
+
+**Step 4: Update docker-compose.yml**
+- [ ] Edit `docker-compose.yml`: `nano docker-compose.yml` or `vi docker-compose.yml`
+- [ ] Update Vaultwarden image version:
+  ```yaml
   vaultwarden:
-    image: vaultwarden/server:1.30.0  # Pin to specific stable version (check https://github.com/dani-garcia/vaultwarden/releases for latest)
-    container_name: vaultwarden
-    restart: unless-stopped
-    environment:
-      - WEBSOCKET_ENABLED=true
-      - SIGNUPS_ALLOWED=false
-      - DOMAIN={{DOMAIN}}
-      - ADMIN_TOKEN=${ADMIN_TOKEN}
-      - DATABASE_URL=/data/db.sqlite3
-    volumes:
-      - ./vaultwarden/data:/data
-    networks:
-      - vaultwarden-network
-    labels:
-      - "com.centurylinklabs.watchtower.enable=false"  # Disabled: Vaultwarden uses version pinning for controlled updates
+    image: vaultwarden/server:1.31.0  # Update to new version
+  ```
+- [ ] Save and exit editor
 
-  caddy:
-    image: caddy:latest
-    container_name: caddy
-    restart: unless-stopped
-    ports:
-      - "80:80"
-      - "443:443"
-      - "443:443/udp"
-    volumes:
-      - ./caddy/Caddyfile:/etc/caddy/Caddyfile
-      - ./caddy/data:/data
-      - ./caddy/config:/config
-    networks:
-      - vaultwarden-network
-    depends_on:
-      - vaultwarden
-    labels:
-      - "com.centurylinklabs.watchtower.enable=true"
+**Step 5: Pull and Deploy Update**
+- [ ] Pull new image: `docker-compose pull vaultwarden`
+- [ ] Stop Vaultwarden container: `docker-compose stop vaultwarden`
+- [ ] Start with new image: `docker-compose up -d vaultwarden`
+- [ ] Verify container started: `docker-compose ps`
 
-  watchtower:
-    image: containrrr/watchtower:latest
-    container_name: watchtower
-    restart: unless-stopped
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
-    environment:
-      - WATCHTOWER_CLEANUP=true
-      - WATCHTOWER_POLL_INTERVAL=86400
-      - WATCHTOWER_INCLUDE_STOPPED=false
-      - WATCHTOWER_REVIVE_STOPPED=false
-    command: --interval 86400
+**Step 6: Verify Update**
+- [ ] Check container logs: `docker-compose logs -f vaultwarden` (watch for errors)
+- [ ] Wait 30 seconds for service to start
+- [ ] Test web interface: `curl -I https://your-domain.com`
+- [ ] Verify admin panel: `https://your-domain.com/admin`
+- [ ] Test login from Bitwarden client
+- [ ] Verify WebSocket connection (real-time sync)
 
-networks:
-  vaultwarden-network:
-    driver: bridge
-```
+**Step 7: Monitor Post-Update**
+- [ ] Monitor logs for 15 minutes: `docker-compose logs -f vaultwarden`
+- [ ] Check for error messages or warnings
+- [ ] Verify all features working (login, sync, attachments)
+- [ ] Monitor for 24 hours for any issues
 
-**Template Variables:**
-- `{{DOMAIN}}`: Full domain URL with https:// (e.g., `https://your-domain.com`)
+**Step 8: Rollback (If Needed)**
+If issues occur, rollback immediately:
+- [ ] Stop current container: `docker-compose stop vaultwarden`
+- [ ] Revert `docker-compose.yml` to previous version
+- [ ] Pull previous image: `docker-compose pull vaultwarden`
+- [ ] Start previous version: `docker-compose up -d vaultwarden`
+- [ ] Verify service restored: `curl https://your-domain.com`
 
-### Caddyfile Template (`Caddyfile.template`)
+### Update Notification Setup (Optional)
 
-```
-{{DOMAIN_NAME}} {
-    # Automatic HTTPS with Let's Encrypt
-    encode zstd gzip
-    
-    # Security headers
-    header {
-        # Enable HSTS
-        Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
-        # Prevent clickjacking
-        X-Frame-Options "DENY"
-        # XSS protection
-        X-Content-Type-Options "nosniff"
-        # Referrer policy
-        Referrer-Policy "strict-origin-when-cross-origin"
-    }
-    
-    # Rate limiting
-    rate_limit {
-        zone dynamic {
-            key {remote_host}
-            events 50
-            window 1m
-        }
-    }
-    
-    # Reverse proxy to Vaultwarden
-    reverse_proxy vaultwarden:80 {
-        header_up X-Real-IP {remote_host}
-        header_up X-Forwarded-For {remote_host}
-        header_up X-Forwarded-Proto {scheme}
-    }
-    
-    # WebSocket support for real-time sync
-    reverse_proxy /notifications/hub vaultwarden:3012 {
-        transport http {
-            versions h2c
-        }
-    }
-}
+**GitHub Release Notifications:**
+- [ ] Subscribe to [Vaultwarden Releases RSS](https://github.com/dani-garcia/vaultwarden/releases.atom)
+- [ ] Or enable GitHub release notifications for the repository
+- [ ] Or check releases manually monthly
 
-# Redirect HTTP to HTTPS
-http://{{DOMAIN_NAME}} {
-    redir https://{{DOMAIN_NAME}}{uri} permanent
-}
-```
+**Security Patch Priority:**
+- [ ] Security patches should be applied within 7 days
+- [ ] Critical security patches should be applied within 24-48 hours
+- [ ] Always backup before applying security patches
 
-**Template Variables:**
-- `{{DOMAIN_NAME}}`: Domain name without https:// (e.g., `your-domain.com`)
-
-### Backup Script Template (`backup.sh.template`)
-
-This template is used as-is without variable substitution. The complete content is available in the repository at `infrastructure/templates/backup.sh.template`.
-
-### Health Check Script Template (`health-check.sh.template`)
+### Quick Update Command Reference
 
 ```bash
-#!/bin/bash
-
-DOMAIN="{{DOMAIN}}"
-ALERT_EMAIL="${ALERT_EMAIL}"
-
-# Check if service is responding
-HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" "${DOMAIN}")
-
-if [ "${HTTP_CODE}" != "200" ]; then
-    echo "[$(date)] Health check failed: HTTP ${HTTP_CODE}"
-    if [ -n "${ALERT_EMAIL}" ]; then
-        echo "Vaultwarden health check failed" | mail -s "Alert: Vaultwarden Down" "${ALERT_EMAIL}"
-    fi
-    exit 1
-fi
-
-# Check container status
-if ! docker ps | grep -q vaultwarden; then
-    echo "[$(date)] Health check failed: Container not running"
-    exit 1
-fi
-
-echo "[$(date)] Health check passed"
-exit 0
+# Full update procedure (after reviewing release notes)
+cd /opt/vaultwarden
+./scripts/backup.sh  # Always backup first!
+nano docker-compose.yml  # Update version number
+docker-compose pull vaultwarden
+docker-compose stop vaultwarden
+docker-compose up -d vaultwarden
+docker-compose logs -f vaultwarden  # Monitor for errors
 ```
 
-**Template Variables:**
-- `{{DOMAIN}}`: Full domain URL with https:// (e.g., `https://your-domain.com`)
+### Current Version Tracking
 
-### Environment Variables Template (`.env.template`)
-
+**Note**: Update the version in `docker-compose.yml` when deploying. To check current running version:
 ```bash
-ADMIN_TOKEN={{ADMIN_TOKEN}}
-DOMAIN={{DOMAIN}}
-BACKUP_ENCRYPTION_KEY={{BACKUP_ENCRYPTION_KEY}}
-RCLONE_REMOTE_NAME=gdrive
-BACKUP_RETENTION_DAYS=30
+docker inspect vaultwarden | grep -i image
 ```
 
-**Template Variables:**
-- `{{ADMIN_TOKEN}}`: Strong random token (generate with `openssl rand -base64 48`)
-- `{{DOMAIN}}`: Full domain URL with https:// (e.g., `https://your-domain.com`)
-- `{{BACKUP_ENCRYPTION_KEY}}`: GPG passphrase or key ID (generate with `openssl rand -base64 32`)
-
-### Resource Tagging Script Template (`tag-resources.sh.template`)
-
-This script automates tagging of all Azure resources in a resource group, reusing the same tag structure as Terraform. The script accepts resource group name, owner email, and optional environment parameter.
-
-**Usage:**
-```bash
-# Basic usage (environment defaults to "production")
-./scripts/tag-resources.sh <resource-group-name> <owner-email>
-
-# With custom environment
-./scripts/tag-resources.sh <resource-group-name> <owner-email> staging
-```
-
-**Features:**
-- Automatically discovers and tags all resources: Resource Group, VM, Disk, NIC, Public IP, NSG, VNet
-- Uses same tag structure as Terraform (see [Terraform Guide](docs/terraform-guide.md))
-- Base tags: `Project=password-manager`, `Environment=<env>`, `Component=infrastructure`, `ManagedBy=manual`, `CostCenter=personal`
-- VM-specific tags: `Component=vaultwarden`, `Backup=enabled`, `Owner=<email>`
-- Includes error handling, validation, and progress reporting
-
-**Template Variables:**
-- This template is used as-is without variable substitution. The script accepts command-line parameters instead.
-
-**Note**: The complete script content is available in the repository at `infrastructure/templates/tag-resources.sh.template`. This script ensures consistency between automated (Terraform) and manual deployments by using the same tag structure.
+**Version History** (update this section when you update):
+- Initial deployment: `1.30.0` (example - check actual latest version)
+- Last updated: [Date of last update]
+- Next check: [Schedule monthly review]
 
 ---
 
@@ -1004,7 +806,7 @@ If you encounter issues during deployment:
 5. See [Troubleshooting Guide](docs/troubleshooting.md) for detailed solutions
 6. **For specific issues, see rollback procedures above**
 
-## Next Steps
+## Next Steps after Successful Deployment
 
 After successful deployment:
 
@@ -1029,110 +831,529 @@ After successful deployment:
 
 ---
 
-## Vaultwarden Update Procedure
+## Templates Reference
 
-Vaultwarden uses **version pinning** instead of automatic updates via Watchtower. This provides better control over when updates are applied, allowing you to review release notes and test updates before deploying to production.
+This section contains all template files and scripts referenced in both automated and manual deployment procedures. These templates are used to generate deployment files with environment-specific values.
 
-### Update Strategy
+## Docker Compose Template (`docker-compose.yml.template`)
 
-- **Current Configuration**: Vaultwarden image is pinned to a specific version (e.g., `vaultwarden/server:1.30.0`)
-- **Watchtower**: Disabled for Vaultwarden (only updates Caddy and Watchtower itself)
-- **Update Frequency**: Manual updates when stable releases or security patches are available
-- **Update Source**: Monitor [Vaultwarden GitHub Releases](https://github.com/dani-garcia/vaultwarden/releases)
+```yaml
+version: '3.8'
 
-### Step-by-Step Update Process
-
-**Step 1: Check for Updates**
-- [ ] Visit [Vaultwarden Releases](https://github.com/dani-garcia/vaultwarden/releases)
-- [ ] Review latest stable release notes
-- [ ] Check for security advisories or critical patches
-- [ ] Note the latest stable version number (e.g., `1.31.0`)
-
-**Step 2: Review Release Notes**
-- [ ] Read changelog for breaking changes
-- [ ] Check for database migration requirements
-- [ ] Review security fixes and improvements
-- [ ] Verify compatibility with your deployment
-
-**Step 3: Create Backup (Critical)**
-- [ ] Navigate to deployment directory: `cd /opt/vaultwarden`
-- [ ] Run backup script: `./scripts/backup.sh`
-- [ ] Verify backup uploaded to Google Drive: `rclone ls gdrive:vaultwarden-backups/ | tail -1`
-- [ ] **Important**: Always backup before updating
-
-**Step 4: Update docker-compose.yml**
-- [ ] Edit `docker-compose.yml`: `nano docker-compose.yml` or `vi docker-compose.yml`
-- [ ] Update Vaultwarden image version:
-  ```yaml
+services:
   vaultwarden:
-    image: vaultwarden/server:1.31.0  # Update to new version
-  ```
-- [ ] Save and exit editor
+    image: vaultwarden/server:1.30.0  # Pin to specific stable version (check https://github.com/dani-garcia/vaultwarden/releases for latest)
+    container_name: vaultwarden
+    restart: unless-stopped
+    environment:
+      - WEBSOCKET_ENABLED=true
+      - SIGNUPS_ALLOWED=false
+      - DOMAIN={{DOMAIN}}
+      - ADMIN_TOKEN=${ADMIN_TOKEN}
+      - DATABASE_URL=/data/db.sqlite3
+    volumes:
+      - ./vaultwarden/data:/data
+    networks:
+      - vaultwarden-network
+    labels:
+      - "com.centurylinklabs.watchtower.enable=false"  # Disabled: Vaultwarden uses version pinning for controlled updates
 
-**Step 5: Pull and Deploy Update**
-- [ ] Pull new image: `docker-compose pull vaultwarden`
-- [ ] Stop Vaultwarden container: `docker-compose stop vaultwarden`
-- [ ] Start with new image: `docker-compose up -d vaultwarden`
-- [ ] Verify container started: `docker-compose ps`
+  caddy:
+    image: caddy:latest
+    container_name: caddy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./caddy/Caddyfile:/etc/caddy/Caddyfile
+      - ./caddy/data:/data
+      - ./caddy/config:/config
+    networks:
+      - vaultwarden-network
+    depends_on:
+      - vaultwarden
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
 
-**Step 6: Verify Update**
-- [ ] Check container logs: `docker-compose logs -f vaultwarden` (watch for errors)
-- [ ] Wait 30 seconds for service to start
-- [ ] Test web interface: `curl -I https://your-domain.com`
-- [ ] Verify admin panel: `https://your-domain.com/admin`
-- [ ] Test login from Bitwarden client
-- [ ] Verify WebSocket connection (real-time sync)
+  watchtower:
+    image: containrrr/watchtower:latest
+    container_name: watchtower
+    restart: unless-stopped
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      - WATCHTOWER_CLEANUP=true
+      - WATCHTOWER_POLL_INTERVAL=86400
+      - WATCHTOWER_INCLUDE_STOPPED=false
+      - WATCHTOWER_REVIVE_STOPPED=false
+    command: --interval 86400
 
-**Step 7: Monitor Post-Update**
-- [ ] Monitor logs for 15 minutes: `docker-compose logs -f vaultwarden`
-- [ ] Check for error messages or warnings
-- [ ] Verify all features working (login, sync, attachments)
-- [ ] Monitor for 24 hours for any issues
+networks:
+  vaultwarden-network:
+    driver: bridge
+```
 
-**Step 8: Rollback (If Needed)**
-If issues occur, rollback immediately:
-- [ ] Stop current container: `docker-compose stop vaultwarden`
-- [ ] Revert `docker-compose.yml` to previous version
-- [ ] Pull previous image: `docker-compose pull vaultwarden`
-- [ ] Start previous version: `docker-compose up -d vaultwarden`
-- [ ] Verify service restored: `curl https://your-domain.com`
+**Template Variables:**
+- `{{DOMAIN}}`: Full domain URL with https:// (e.g., `https://your-domain.com`)
 
-### Update Notification Setup (Optional)
+## Caddyfile Template (`Caddyfile.template`)
 
-**GitHub Release Notifications:**
-- [ ] Subscribe to [Vaultwarden Releases RSS](https://github.com/dani-garcia/vaultwarden/releases.atom)
-- [ ] Or enable GitHub release notifications for the repository
-- [ ] Or check releases manually monthly
+```
+{{DOMAIN_NAME}} {
+    # Automatic HTTPS with Let's Encrypt
+    encode zstd gzip
+    
+    # Security headers
+    header {
+        # Enable HSTS
+        Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+        # Prevent clickjacking
+        X-Frame-Options "DENY"
+        # XSS protection
+        X-Content-Type-Options "nosniff"
+        # Referrer policy
+        Referrer-Policy "strict-origin-when-cross-origin"
+    }
+    
+    # Rate limiting
+    rate_limit {
+        zone dynamic {
+            key {remote_host}
+            events 50
+            window 1m
+        }
+    }
+    
+    # Reverse proxy to Vaultwarden
+    reverse_proxy vaultwarden:80 {
+        header_up X-Real-IP {remote_host}
+        header_up X-Forwarded-For {remote_host}
+        header_up X-Forwarded-Proto {scheme}
+    }
+    
+    # WebSocket support for real-time sync
+    reverse_proxy /notifications/hub vaultwarden:3012 {
+        transport http {
+            versions h2c
+        }
+    }
+}
 
-**Security Patch Priority:**
-- [ ] Security patches should be applied within 7 days
-- [ ] Critical security patches should be applied within 24-48 hours
-- [ ] Always backup before applying security patches
+# Redirect HTTP to HTTPS
+http://{{DOMAIN_NAME}} {
+    redir https://{{DOMAIN_NAME}}{uri} permanent
+}
+```
 
-### Quick Update Command Reference
+**Template Variables:**
+- `{{DOMAIN_NAME}}`: Domain name without https:// (e.g., `your-domain.com`)
+
+## Backup Script Template (`backup.sh.template`)
+
+This template is used as-is without variable substitution. The complete content is available in the repository at `infrastructure/templates/backup.sh.template`.
+
+## Restore Script (`restore.sh`)
+
+This script restores Vaultwarden data from encrypted backups stored in Google Drive. The script is created manually during disaster recovery (see [Disaster Recovery - Step 2: Create Restore Script](#step-2-create-restore-script)).
+
+**Usage:**
+```bash
+# List available backups
+./scripts/restore.sh
+
+# Restore a specific backup
+./scripts/restore.sh vaultwarden_backup_YYYYMMDD_HHMMSS.tar.gz.gpg
+```
+
+**Features:**
+- Downloads encrypted backup from Google Drive using Rclone
+- Decrypts backup using GPG (supports both passphrase and key-based encryption)
+- Extracts and restores database and attachments
+- Automatically stops and starts Vaultwarden container during restore
+- Cleans up temporary files after restore
+
+**Script Content:**
 
 ```bash
-# Full update procedure (after reviewing release notes)
+#!/bin/bash
+set -e
+
+# Configuration
+BACKUP_DIR="/opt/vaultwarden/backups"
+VAULTWARDEN_DATA="/opt/vaultwarden/vaultwarden/data"
+RCLONE_REMOTE="${RCLONE_REMOTE_NAME:-gdrive}"
+ENCRYPTION_KEY="${BACKUP_ENCRYPTION_KEY}"
+
+# Check if backup file is provided
+if [ -z "$1" ]; then
+    echo "Usage: $0 <backup-filename> [restore-path]"
+    echo ""
+    echo "Available backups:"
+    rclone lsf "${RCLONE_REMOTE}:vaultwarden-backups/" | grep "\.gpg$"
+    exit 1
+fi
+
+BACKUP_FILE="$1"
+RESTORE_PATH="${2:-${BACKUP_DIR}}"
+
+# Download backup from Google Drive
+echo "[$(date)] Downloading backup from Google Drive..."
+mkdir -p "${RESTORE_PATH}"
+rclone copy "${RCLONE_REMOTE}:vaultwarden-backups/${BACKUP_FILE}" \
+    "${RESTORE_PATH}/" \
+    --log-file="${RESTORE_PATH}/rclone-restore.log"
+
+DOWNLOADED_FILE="${RESTORE_PATH}/${BACKUP_FILE}"
+
+# Decrypt backup
+echo "[$(date)] Decrypting backup..."
+DECRYPTED_FILE="${DOWNLOADED_FILE%.gpg}"
+if [ -n "${ENCRYPTION_KEY}" ]; then
+    # Using GPG with passphrase
+    gpg --batch --yes --passphrase "${ENCRYPTION_KEY}" \
+        --decrypt "${DOWNLOADED_FILE}" > "${DECRYPTED_FILE}"
+else
+    # Using GPG with key
+    gpg --decrypt --output "${DECRYPTED_FILE}" "${DOWNLOADED_FILE}"
+fi
+
+# Extract backup
+echo "[$(date)] Extracting backup..."
+EXTRACT_DIR="${RESTORE_PATH}/restore_$(date +%Y%m%d_%H%M%S)"
+mkdir -p "${EXTRACT_DIR}"
+tar -xzf "${DECRYPTED_FILE}" -C "${EXTRACT_DIR}"
+
+# Find backup directory
+BACKUP_CONTENT=$(find "${EXTRACT_DIR}" -type d -name "vaultwarden_backup_*" | head -1)
+if [ -z "${BACKUP_CONTENT}" ]; then
+    echo "Error: Could not find backup content directory"
+    exit 1
+fi
+
+# Stop Vaultwarden container
+echo "[$(date)] Stopping Vaultwarden container..."
 cd /opt/vaultwarden
-./scripts/backup.sh  # Always backup first!
-nano docker-compose.yml  # Update version number
-docker-compose pull vaultwarden
 docker-compose stop vaultwarden
-docker-compose up -d vaultwarden
-docker-compose logs -f vaultwarden  # Monitor for errors
+
+# Restore database
+echo "[$(date)] Restoring database..."
+if [ -f "${BACKUP_CONTENT}/db.sqlite3" ]; then
+    cp "${BACKUP_CONTENT}/db.sqlite3" "${VAULTWARDEN_DATA}/db.sqlite3"
+    chown -R $(id -u):$(id -g) "${VAULTWARDEN_DATA}/db.sqlite3"
+fi
+
+# Restore attachments
+echo "[$(date)] Restoring attachments..."
+if [ -f "${BACKUP_CONTENT}/attachments.tar.gz" ]; then
+    rm -rf "${VAULTWARDEN_DATA}/attachments"
+    tar -xzf "${BACKUP_CONTENT}/attachments.tar.gz" -C "${VAULTWARDEN_DATA}"
+    chown -R $(id -u):$(id -g) "${VAULTWARDEN_DATA}/attachments"
+fi
+
+# Start Vaultwarden container
+echo "[$(date)] Starting Vaultwarden container..."
+docker-compose start vaultwarden
+
+# Clean up
+echo "[$(date)] Cleaning up temporary files..."
+rm -rf "${EXTRACT_DIR}"
+rm -f "${DOWNLOADED_FILE}" "${DECRYPTED_FILE}"
+
+echo "[$(date)] Restore completed successfully"
+echo "Vaultwarden is now running with restored data"
 ```
 
-### Current Version Tracking
+**Environment Variables:**
+- `RCLONE_REMOTE_NAME` (defaults to `gdrive`) - Rclone remote name for Google Drive
+- `BACKUP_ENCRYPTION_KEY` - GPG passphrase or key ID for decrypting backups
 
-**Note**: Update the version in `docker-compose.yml` when deploying. To check current running version:
+**Note**: This script is created manually during disaster recovery. See [Disaster Recovery - Step 2: Create Restore Script](#step-2-create-restore-script) for creation instructions.
+
+## Health Check Script Template (`health-check.sh.template`)
+
 ```bash
-docker inspect vaultwarden | grep -i image
+#!/bin/bash
+
+DOMAIN="{{DOMAIN}}"
+ALERT_EMAIL="${ALERT_EMAIL}"
+
+# Check if service is responding
+HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" "${DOMAIN}")
+
+if [ "${HTTP_CODE}" != "200" ]; then
+    echo "[$(date)] Health check failed: HTTP ${HTTP_CODE}"
+    if [ -n "${ALERT_EMAIL}" ]; then
+        echo "Vaultwarden health check failed" | mail -s "Alert: Vaultwarden Down" "${ALERT_EMAIL}"
+    fi
+    exit 1
+fi
+
+# Check container status
+if ! docker ps | grep -q vaultwarden; then
+    echo "[$(date)] Health check failed: Container not running"
+    exit 1
+fi
+
+echo "[$(date)] Health check passed"
+exit 0
 ```
 
-**Version History** (update this section when you update):
-- Initial deployment: `1.30.0` (example - check actual latest version)
-- Last updated: [Date of last update]
-- Next check: [Schedule monthly review]
+**Template Variables:**
+- `{{DOMAIN}}`: Full domain URL with https:// (e.g., `https://your-domain.com`)
+
+## Environment Variables Template (`.env.template`)
+
+```bash
+ADMIN_TOKEN={{ADMIN_TOKEN}}
+DOMAIN={{DOMAIN}}
+BACKUP_ENCRYPTION_KEY={{BACKUP_ENCRYPTION_KEY}}
+RCLONE_REMOTE_NAME=gdrive
+BACKUP_RETENTION_DAYS=30
+```
+
+**Template Variables:**
+- `{{ADMIN_TOKEN}}`: Strong random token (generate with `openssl rand -base64 48`)
+- `{{DOMAIN}}`: Full domain URL with https:// (e.g., `https://your-domain.com`)
+- `{{BACKUP_ENCRYPTION_KEY}}`: GPG passphrase or key ID (generate with `openssl rand -base64 32`)
+
+## Resource Tagging Script (`tag-resources.sh`)
+
+This script automates tagging of all Azure resources in a resource group, reusing the same tag structure as Terraform. The script is created from template during Step 1: Terraform Setup (see [Step 1: Terraform Setup](#step-1-terraform-setup)).
+
+**Usage:**
+```bash
+# Basic usage (environment defaults to "production")
+./scripts/tag-resources.sh <resource-group-name> <owner-email>
+
+# With custom environment
+./scripts/tag-resources.sh <resource-group-name> <owner-email> staging
+```
+
+**Features:**
+- Automatically discovers and tags all resources: Resource Group, VM, Disk, NIC, Public IP, NSG, VNet
+- Uses same tag structure as Terraform (see [Terraform Guide](docs/terraform-guide.md))
+- Base tags: `Project=password-manager`, `Environment=<env>`, `Component=infrastructure`, `ManagedBy=manual`, `CostCenter=personal`
+- VM-specific tags: `Component=vaultwarden`, `Backup=enabled`, `Owner=<email>`
+- Includes error handling, validation, and progress reporting
+
+**Script Content:**
+
+```bash
+#!/bin/bash
+set -e
+
+# Azure Resource Tagging Script
+# Reuses the same tag structure as Terraform (docs/terraform-guide.md)
+# Usage: ./tag-resources.sh <resource-group-name> <owner-email> [environment]
+
+# Configuration
+RESOURCE_GROUP="${1}"
+OWNER_EMAIL="${2}"
+ENVIRONMENT="${3:-production}"
+
+# Validation
+if [ -z "${RESOURCE_GROUP}" ] || [ -z "${OWNER_EMAIL}" ]; then
+    echo "Usage: $0 <resource-group-name> <owner-email> [environment]"
+    echo "  environment defaults to 'production' if not specified"
+    exit 1
+fi
+
+# Verify Azure CLI is installed and logged in
+if ! command -v az &> /dev/null; then
+    echo "Error: Azure CLI is not installed. Please install it first."
+    exit 1
+fi
+
+# Check if logged in
+if ! az account show &> /dev/null; then
+    echo "Error: Not logged in to Azure. Please run 'az login' first."
+    exit 1
+fi
+
+# Verify resource group exists
+if ! az group show --name "${RESOURCE_GROUP}" &> /dev/null; then
+    echo "Error: Resource group '${RESOURCE_GROUP}' not found."
+    exit 1
+fi
+
+echo "=========================================="
+echo "Azure Resource Tagging Script"
+echo "=========================================="
+echo "Resource Group: ${RESOURCE_GROUP}"
+echo "Owner Email: ${OWNER_EMAIL}"
+echo "Environment: ${ENVIRONMENT}"
+echo "=========================================="
+echo ""
+
+# Base tags (same as Terraform's azurerm_resource_group.main.tags)
+# Only difference: ManagedBy = "manual" instead of "terraform"
+BASE_TAGS="Project=password-manager Environment=${ENVIRONMENT} Component=infrastructure ManagedBy=manual CostCenter=personal"
+
+# VM-specific tags (same as Terraform's merge logic)
+# Component=vaultwarden overrides base Component, Backup=enabled added
+VM_TAGS="${BASE_TAGS} Component=vaultwarden Backup=enabled Owner=${OWNER_EMAIL}"
+
+# Function to tag a resource
+tag_resource() {
+    local resource_type=$1
+    local resource_name=$2
+    local tags=$3
+    
+    echo "Tagging ${resource_type}: ${resource_name}..."
+    if az ${resource_type} update \
+        --resource-group "${RESOURCE_GROUP}" \
+        --name "${resource_name}" \
+        --set ${tags} &> /dev/null; then
+        echo "  ✓ Successfully tagged ${resource_name}"
+        return 0
+    else
+        echo "  ✗ Failed to tag ${resource_name} (resource may not exist or name may differ)"
+        return 1
+    fi
+}
+
+# Function to tag resource group
+tag_resource_group() {
+    echo "Tagging Resource Group: ${RESOURCE_GROUP}..."
+    if az group update \
+        --name "${RESOURCE_GROUP}" \
+        --set ${BASE_TAGS} &> /dev/null; then
+        echo "  ✓ Successfully tagged resource group"
+        return 0
+    else
+        echo "  ✗ Failed to tag resource group"
+        return 1
+    fi
+}
+
+# Start tagging
+SUCCESS_COUNT=0
+FAILED_COUNT=0
+
+# Tag Resource Group
+if tag_resource_group; then
+    ((SUCCESS_COUNT++))
+else
+    ((FAILED_COUNT++))
+fi
+
+# Discover and tag Virtual Machine
+echo ""
+echo "Discovering Virtual Machine..."
+VM_NAME=$(az vm list --resource-group "${RESOURCE_GROUP}" --query "[0].name" -o tsv 2>/dev/null || echo "")
+if [ -n "${VM_NAME}" ]; then
+    if tag_resource "vm" "${VM_NAME}" "${VM_TAGS}"; then
+        ((SUCCESS_COUNT++))
+    else
+        ((FAILED_COUNT++))
+    fi
+else
+    echo "  ⚠ No virtual machine found in resource group"
+fi
+
+# Discover and tag OS Disk
+echo ""
+echo "Discovering OS Disk..."
+DISK_NAME=$(az disk list --resource-group "${RESOURCE_GROUP}" --query "[0].name" -o tsv 2>/dev/null || echo "")
+if [ -n "${DISK_NAME}" ]; then
+    if tag_resource "disk" "${DISK_NAME}" "${BASE_TAGS}"; then
+        ((SUCCESS_COUNT++))
+    else
+        ((FAILED_COUNT++))
+    fi
+else
+    echo "  ⚠ No disk found in resource group"
+fi
+
+# Discover and tag Network Interface
+echo ""
+echo "Discovering Network Interface..."
+NIC_NAME=$(az network nic list --resource-group "${RESOURCE_GROUP}" --query "[0].name" -o tsv 2>/dev/null || echo "")
+if [ -n "${NIC_NAME}" ]; then
+    if tag_resource "network nic" "${NIC_NAME}" "${BASE_TAGS}"; then
+        ((SUCCESS_COUNT++))
+    else
+        ((FAILED_COUNT++))
+    fi
+else
+    echo "  ⚠ No network interface found in resource group"
+fi
+
+# Discover and tag Public IP Address
+echo ""
+echo "Discovering Public IP Address..."
+PIP_NAME=$(az network public-ip list --resource-group "${RESOURCE_GROUP}" --query "[0].name" -o tsv 2>/dev/null || echo "")
+if [ -n "${PIP_NAME}" ]; then
+    if tag_resource "network public-ip" "${PIP_NAME}" "${BASE_TAGS}"; then
+        ((SUCCESS_COUNT++))
+    else
+        ((FAILED_COUNT++))
+    fi
+else
+    echo "  ⚠ No public IP address found in resource group"
+fi
+
+# Discover and tag Network Security Group
+echo ""
+echo "Discovering Network Security Group..."
+NSG_NAME=$(az network nsg list --resource-group "${RESOURCE_GROUP}" --query "[0].name" -o tsv 2>/dev/null || echo "")
+if [ -n "${NSG_NAME}" ]; then
+    if tag_resource "network nsg" "${NSG_NAME}" "${BASE_TAGS}"; then
+        ((SUCCESS_COUNT++))
+    else
+        ((FAILED_COUNT++))
+    fi
+else
+    echo "  ⚠ No network security group found in resource group"
+fi
+
+# Discover and tag Virtual Network
+echo ""
+echo "Discovering Virtual Network..."
+VNET_NAME=$(az network vnet list --resource-group "${RESOURCE_GROUP}" --query "[0].name" -o tsv 2>/dev/null || echo "")
+if [ -n "${VNET_NAME}" ]; then
+    if tag_resource "network vnet" "${VNET_NAME}" "${BASE_TAGS}"; then
+        ((SUCCESS_COUNT++))
+    else
+        ((FAILED_COUNT++))
+    fi
+else
+    echo "  ⚠ No virtual network found in resource group"
+fi
+
+# Summary
+echo ""
+echo "=========================================="
+echo "Tagging Summary"
+echo "=========================================="
+echo "Successfully tagged: ${SUCCESS_COUNT} resource(s)"
+if [ ${FAILED_COUNT} -gt 0 ]; then
+    echo "Failed/Warning: ${FAILED_COUNT} resource(s)"
+    echo ""
+    echo "Note: Some resources may not exist or have different names."
+    echo "      Verify tags in Azure Portal if needed."
+fi
+echo "=========================================="
+
+# Verify tags (optional - show VM tags as example)
+if [ -n "${VM_NAME}" ]; then
+    echo ""
+    echo "Verification - VM Tags:"
+    az vm show --resource-group "${RESOURCE_GROUP}" --name "${VM_NAME}" --query "tags" -o table 2>/dev/null || echo "  Could not retrieve tags"
+fi
+
+echo ""
+echo "Tagging complete!"
+echo ""
+echo "Tags applied match Terraform's tag structure:"
+echo "  - Base tags: Project, Environment, Component, ManagedBy, CostCenter"
+echo "  - VM-specific: Component=vaultwarden, Backup=enabled, Owner"
+echo "  - Only difference: ManagedBy=manual (vs terraform in automated deployment)"
+```
+
+**Note**: This script will be created from template during Step 1: Terraform Setup. The template file `tag-resources.sh.template` will be created in `infrastructure/templates/` when the plan is executed. This script ensures consistency between automated (Terraform) and manual deployments by using the same tag structure.
 
 ---
 
