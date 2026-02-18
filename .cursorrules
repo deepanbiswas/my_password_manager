@@ -38,6 +38,22 @@ This repository contains the technical specification and implementation guide fo
 - **Deployment steps** → `plan.md`
 - **Configuration** → `.env.example`
 
+## Spec-Driven Development (SDD) Principles
+
+Separate **requirements** (WHAT) from **execution** (HOW):
+
+**`spec.md`** = Requirements & Blueprint (WHAT)
+- Infrastructure, service, security, and deployment requirements
+- Constraints and specifications
+- **NOT**: Step-by-step procedures, config examples, commands
+
+**`plan.md`** = Execution Strategy (HOW)
+- Deployment procedures and configuration examples
+- Setup scripts and command-line instructions
+- **NOT**: High-level requirements or architectural decisions
+
+**Rule**: If it's a "must/should" → `spec.md`. If it's a "how to" → `plan.md`.
+
 ## Code Style and Conventions
 
 - Use Docker Compose for container orchestration
