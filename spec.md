@@ -14,15 +14,14 @@
    - 2.3 [Data Flow](#23-data-flow)
    - 2.4 [Technology Stack](#24-technology-stack)
 
-3. [Infrastructure & Deployment Strategy](#3-infrastructure--deployment-strategy)
+3. [Infrastructure & Deployment Requirements](#3-infrastructure--deployment-requirements)
    - 3.1 [Infrastructure Requirements](#31-infrastructure-requirements)
-   - 3.2 [Directory Structure](#32-directory-structure)
-   - 3.3 [Docker Compose Configuration](#33-docker-compose-configuration)
-   - 3.4 [Reverse Proxy Configuration](#34-reverse-proxy-configuration)
-   - 3.5 [Deployment Procedure](#35-deployment-procedure)
-   - 3.6 [Resource Tagging and Cost Management](#36-resource-tagging-and-cost-management)
-   - 3.7 [Infrastructure as Code (IaC) and CI/CD Automation](#37-infrastructure-as-code-iac-and-cicd-automation)
-   - 3.8 [Post-Deployment Configuration](#38-post-deployment-configuration)
+   - 3.2 [Directory Structure Requirements](#32-directory-structure-requirements)
+   - 3.3 [Service Requirements](#33-service-requirements)
+   - 3.4 [Security Requirements](#34-security-requirements)
+   - 3.5 [Deployment Method Requirements](#35-deployment-method-requirements)
+   - 3.6 [Resource Management Requirements](#36-resource-management-requirements)
+   - 3.7 [Post-Deployment Requirements](#37-post-deployment-requirements)
 
 4. [Security Specification](#4-security-specification)
    - 4.1 [Zero-Knowledge Architecture](#41-zero-knowledge-architecture)
@@ -85,33 +84,38 @@ This specification defines a self-hosted, secure, and maintenance-free personal 
 
 The system follows a three-tier architecture:
 
-```
-┌─────────────┐
-│   Client    │ (Bitwarden Desktop/Mobile/Web)
-│  (Browser)  │
-└──────┬──────┘
-       │ HTTPS (TLS 1.3)
-       │
-┌──────▼──────────────────────────────────────┐
-│         Reverse Proxy Layer                │
-│  ┌──────────────────────────────────────┐  │
-│  │  Caddy/Nginx + Let's Encrypt         │  │
-│  │  - Automatic SSL certificate renewal │  │
-│  │  - HTTP → HTTPS redirect              │  │
-│  │  - Rate limiting                      │  │
-│  └──────────────┬───────────────────────┘  │
-└─────────────────┼──────────────────────────┘
-                  │
-┌─────────────────▼──────────────────────────┐
-│         Application Layer                  │
-│  ┌──────────────────────────────────────┐  │
-│  │      Vaultwarden Container           │  │
-│  │  - Rust-based Bitwarden server       │  │
-│  │  - SQLite database                    │  │
-│  │  - Attachment storage                │  │
-│  │  - Zero-knowledge encryption         │  │
-│  └──────────────────────────────────────┘  │
-└─────────────────────────────────────────────┘
+```mermaid
+graph TB
+    subgraph Client["Client Layer"]
+        Desktop[Bitwarden Desktop]
+        Mobile[Bitwarden Mobile]
+        Web[Bitwarden Web]
+    end
+    
+    subgraph Proxy["Reverse Proxy Layer"]
+        Caddy[Caddy/Nginx<br/>+ Let's Encrypt]
+        SSL[Automatic SSL<br/>Certificate Renewal]
+        Redirect[HTTP → HTTPS<br/>Redirect]
+        RateLimit[Rate Limiting]
+        Caddy --> SSL
+        Caddy --> Redirect
+        Caddy --> RateLimit
+    end
+    
+    subgraph App["Application Layer"]
+        Vaultwarden[Vaultwarden Container<br/>Rust-based Bitwarden Server]
+        SQLite[(SQLite Database)]
+        Attachments[Attachment Storage]
+        Encryption[Zero-Knowledge<br/>Encryption]
+        Vaultwarden --> SQLite
+        Vaultwarden --> Attachments
+        Vaultwarden --> Encryption
+    end
+    
+    Desktop -->|HTTPS<br/>TLS 1.3| Caddy
+    Mobile -->|HTTPS<br/>TLS 1.3| Caddy
+    Web -->|HTTPS<br/>TLS 1.3| Caddy
+    Caddy -->|Internal Network| Vaultwarden
 ```
 
 ### 2.2 Component Architecture
@@ -178,58 +182,56 @@ graph TB
 | **Container Runtime** | Docker | 24.0+ | Container orchestration |
 | **Orchestration** | Docker Compose | 2.20+ | Multi-container management |
 | **Database** | SQLite | 3.x (embedded) | Data persistence (embedded in Vaultwarden container) |
-| **Update Automation** | Watchtower | Latest stable | Container update automation |
+| **Update Automation** | Watchtower | Latest stable | Container update automation (Caddy & Watchtower only; Vaultwarden uses version pinning) |
 | **Backup Tool** | Rclone | Latest stable | Cloud storage synchronization |
 | **Encryption** | GPG | 2.x | Backup encryption |
 | **SSL Certificates** | Let's Encrypt | Auto-renewed | TLS certificates |
 | **Operating System** | Ubuntu LTS | 22.04+ | Host operating system |
 
-## 3. Infrastructure & Deployment Strategy
+## 3. Infrastructure & Deployment Requirements
 
 ### 3.1 Infrastructure Requirements
 
 #### 3.1.1 Minimum System Requirements
 
-- **CPU**: 2 vCPUs
+- **CPU**: 2 vCPUs minimum
 - **RAM**: 2 GB minimum (4 GB recommended)
 - **Storage**: 20 GB minimum (50 GB recommended for attachments)
-- **Network**: Static IP address or dynamic DNS
+- **Network**: Static IP address or dynamic DNS support
 - **OS**: Ubuntu 22.04 LTS or later
 
-#### 3.1.1.1 SQLite Installation
-
-**SQLite is not manually installed** - it comes pre-installed and embedded within the Vaultwarden Docker container. The Vaultwarden image includes SQLite 3.x as a compiled library dependency. When the container starts:
-
-1. Vaultwarden automatically initializes the SQLite database file (`db.sqlite3`) if it doesn't exist
-2. The database is stored in the mounted volume at `/opt/vaultwarden/vaultwarden/data/db.sqlite3`
-3. All database operations (create, read, update, delete) are handled by Vaultwarden's Rust codebase
-4. No separate SQLite installation or configuration is required on the host system
-
-The `sqlite3` command-line tool used in backup scripts is installed separately via the host system's package manager (Ubuntu's `sqlite3` package) for backup operations only.
-
-#### 3.1.2 Network Configuration
+#### 3.1.2 Network Requirements
 
 - **Inbound Ports**: 
-  - Port 80 (HTTP) - Redirects to HTTPS
-  - Port 443 (HTTPS) - Primary access
+  - Port 80 (HTTP) - Must redirect to HTTPS
+  - Port 443 (HTTPS) - Primary access point
 - **Outbound Ports**: 
-  - Port 443 (HTTPS) - Let's Encrypt, Google Drive API
-- **Firewall**: UFW (Uncomplicated Firewall) configured to allow only 80/443
+  - Port 443 (HTTPS) - For Let's Encrypt certificate renewal and Google Drive API
+- **Firewall**: Must restrict access to ports 80/443 only
 
-### 3.2 Directory Structure
+#### 3.1.3 Database Requirements
+
+- **Type**: SQLite (embedded in Vaultwarden container)
+- **Storage**: Database file must be persisted in mounted volume
+- **Backup**: Database must be accessible for backup operations via `sqlite3` CLI tool
+- **Note**: SQLite is embedded within the Vaultwarden Docker container and does not require separate installation. The `sqlite3` command-line tool must be available on the host system for backup operations.
+
+### 3.2 Directory Structure Requirements
+
+The system must organize files in the following structure:
 
 ```
 /opt/vaultwarden/
-├── docker-compose.yml          # Main orchestration file
+├── docker-compose.yml          # Container orchestration configuration
 ├── .env                         # Environment variables (secrets)
 ├── caddy/
 │   ├── Caddyfile               # Reverse proxy configuration
-│   └── data/                   # Caddy data directory
+│   └── data/                   # Caddy SSL certificate storage
 ├── vaultwarden/
-│   ├── data/                   # Vaultwarden data directory
+│   ├── data/                   # Application data directory
 │   │   ├── db.sqlite3          # SQLite database
-│   │   └── attachments/        # User attachments
-│   └── config/                 # Vaultwarden configuration
+│   │   └── attachments/        # User file attachments
+│   └── config/                 # Application configuration
 ├── scripts/
 │   ├── backup.sh               # Backup automation script
 │   ├── restore.sh              # Disaster recovery script
@@ -237,386 +239,232 @@ The `sqlite3` command-line tool used in backup scripts is installed separately v
 └── backups/                    # Temporary backup location (local)
 ```
 
-### 3.3 Docker Compose Configuration
+**Requirements:**
+- All directories must be owned by the deployment user
+- `.env` file must have restricted permissions (600)
+- Data directories must persist across container restarts
 
-#### 3.3.1 Main Configuration (`docker-compose.yml`)
+### 3.3 Service Requirements
 
-```yaml
-version: '3.8'
+#### 3.3.1 Container Services
 
-services:
-  vaultwarden:
-    image: vaultwarden/server:latest
-    container_name: vaultwarden
-    restart: unless-stopped
-    environment:
-      - WEBSOCKET_ENABLED=true
-      - SIGNUPS_ALLOWED=false
-      - DOMAIN=https://your-domain.com
-      - ADMIN_TOKEN=${ADMIN_TOKEN}
-      - DATABASE_URL=/data/db.sqlite3
-    volumes:
-      - ./vaultwarden/data:/data
-    networks:
-      - vaultwarden-network
-    labels:
-      - "com.centurylinklabs.watchtower.enable=true"
+The system must deploy the following services:
 
-  caddy:
-    image: caddy:latest
-    container_name: caddy
-    restart: unless-stopped
-    ports:
-      - "80:80"
-      - "443:443"
-      - "443:443/udp"
-    volumes:
-      - ./caddy/Caddyfile:/etc/caddy/Caddyfile
-      - ./caddy/data:/data
-      - ./caddy/config:/config
-    networks:
-      - vaultwarden-network
-    depends_on:
-      - vaultwarden
-    labels:
-      - "com.centurylinklabs.watchtower.enable=true"
+1. **Vaultwarden Application**
+   - Image: `vaultwarden/server:<version>` (pinned to specific stable version, e.g., `1.30.0`)
+   - **Update Strategy**: Version pinning with manual updates (Watchtower disabled for Vaultwarden)
+   - Must run with restart policy `unless-stopped`
+   - Must have access to persistent data volume
+   - Must be accessible only via reverse proxy (internal network)
+   - Must support WebSocket connections for real-time sync
+   - Must have public signups disabled by default
+   - **Update Requirements**: 
+     - Updates must be applied manually after reviewing release notes
+     - Backup must be created before any update
+     - Security patches must be applied within 7 days (critical patches within 24-48 hours)
+     - See [plan.md](plan.md) Section "Vaultwarden Update Procedure" for detailed update steps
 
-  watchtower:
-    image: containrrr/watchtower:latest
-    container_name: watchtower
-    restart: unless-stopped
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
-    environment:
-      - WATCHTOWER_CLEANUP=true
-      - WATCHTOWER_POLL_INTERVAL=86400
-      - WATCHTOWER_INCLUDE_STOPPED=false
-      - WATCHTOWER_REVIVE_STOPPED=false
-    command: --interval 86400
+2. **Reverse Proxy (Caddy)**
+   - Image: `caddy:latest`
+   - Must expose ports 80 and 443
+   - Must automatically obtain and renew SSL certificates via Let's Encrypt
+   - Must redirect all HTTP traffic to HTTPS
+   - Must implement security headers (HSTS, X-Frame-Options, etc.)
+   - Must implement rate limiting
 
-networks:
-  vaultwarden-network:
-    driver: bridge
-```
+3. **Update Automation (Watchtower)**
+   - Image: `containrrr/watchtower:latest`
+   - Must monitor and update containers automatically (Caddy and Watchtower only)
+   - **Vaultwarden Exclusion**: Watchtower must be disabled for Vaultwarden container (uses version pinning)
+   - Must clean up old images after updates
+   - Must run daily checks
+   - **Note**: Vaultwarden updates are manual to ensure controlled deployment after reviewing release notes
 
-#### 3.3.2 Environment Variables (`.env`)
+#### 3.3.2 Environment Variables
 
-```bash
-# Vaultwarden Configuration
-ADMIN_TOKEN=<generate-strong-random-token>
-DOMAIN=https://your-domain.com
+The following environment variables must be configured:
 
-# Backup Configuration
-BACKUP_ENCRYPTION_KEY=<gpg-key-id-or-passphrase>
-RCLONE_REMOTE_NAME=gdrive
-BACKUP_RETENTION_DAYS=30
+**Required:**
+- `ADMIN_TOKEN`: Strong random token for admin panel access
+- `DOMAIN`: Full HTTPS URL of the deployment
+- `WEBSOCKET_ENABLED`: Enable WebSocket support (default: true)
+- `SIGNUPS_ALLOWED`: Allow new user registrations (default: false)
+- `DATABASE_URL`: SQLite database path (default: /data/db.sqlite3)
 
-# Google Drive (Rclone)
-# Configured separately via: rclone config
-```
+**Backup Configuration:**
+- `BACKUP_ENCRYPTION_KEY`: GPG key ID or passphrase for backup encryption
+- `RCLONE_REMOTE_NAME`: Name of Rclone remote for Google Drive
+- `BACKUP_RETENTION_DAYS`: Number of days to retain backups (default: 30)
 
-### 3.4 Reverse Proxy Configuration
+For complete configuration examples, see [plan.md](plan.md) and [.env.example](.env.example).
+
+### 3.4 Security Requirements
+
+#### 3.4.1 Reverse Proxy Security
+
+The reverse proxy must implement:
+
+- **Automatic SSL/TLS**: Certificates must be obtained and renewed automatically via Let's Encrypt
+- **HTTP to HTTPS Redirect**: All HTTP traffic must redirect to HTTPS
+- **Security Headers**:
+  - `Strict-Transport-Security`: HSTS with max-age 31536000
+  - `X-Frame-Options`: DENY
+  - `X-Content-Type-Options`: nosniff
+  - `Referrer-Policy`: strict-origin-when-cross-origin
+- **Rate Limiting**: Must limit requests per IP to prevent abuse
+- **WebSocket Support**: Must support WebSocket connections for real-time synchronization
 
 **Note**: Caddy is the recommended reverse proxy for automatic SSL certificate management. For comparison with Nginx and alternative configurations, see [Reverse Proxy Comparison](docs/reverse-proxy-comparison.md).
 
-#### 3.4.1 Caddy Configuration (`caddy/Caddyfile`)
+#### 3.4.2 Network Security
 
-```
-your-domain.com {
-    # Automatic HTTPS with Let's Encrypt
-    encode zstd gzip
+- Only ports 80 and 443 must be exposed to the internet
+- All internal container communication must use Docker networks
+- Firewall must be configured to deny all traffic except 80/443
+
+### 3.5 Deployment Method Requirements
+
+The system must support two deployment methods:
+
+#### 3.5.1 Automated Deployment (Recommended)
+
+**Requirements:**
+- Infrastructure must be provisioned using Infrastructure as Code (Terraform)
+- Deployment must be automated via CI/CD pipelines
+- Infrastructure changes must be version-controlled
+- Deployment must support rollback capability
+- Must support multi-cloud deployment (Azure, AWS, GCP)
+
+**Infrastructure as Code Requirements:**
+- Must provision VM with required specifications (Section 3.1.1)
+- Must configure networking and security groups
+- Must set up public IP address
+- Must implement resource tagging for cost tracking
+- Must use cloud-init for automated VM setup
+
+**CI/CD Pipeline Requirements:**
+- Must validate infrastructure changes before deployment
+- Must deploy application code to provisioned infrastructure
+- Must perform health checks after deployment
+- Must support automated rollback on failure
+
+**CI/CD Pipeline Workflow:**
+
+The automated deployment pipeline must follow this workflow:
+
+```mermaid
+graph TB
+    Start[Code Push/PR] --> Checkout[Checkout Code]
+    Checkout --> TerraformInit[Terraform Init]
+    TerraformInit --> TerraformValidate[Terraform Validate]
+    TerraformValidate --> TerraformPlan[Terraform Plan]
+    TerraformPlan --> PlanReview{Review Plan}
+    PlanReview -->|Approve| TerraformApply[Terraform Apply]
+    PlanReview -->|Reject| End1[Stop Pipeline]
+    TerraformApply --> GetVMIP[Get VM Public IP]
+    GetVMIP --> SetupSSH[Setup SSH Connection]
+    SetupSSH --> CloneRepo[Clone/Pull Repository on VM]
+    CloneRepo --> PullImages[Docker Compose Pull]
+    PullImages --> DeployApp[Docker Compose Up -d]
+    DeployApp --> WaitServices[Wait for Services<br/>30 seconds]
+    WaitServices --> HealthCheck[Health Check<br/>HTTPS Test]
+    HealthCheck --> HealthPass{Health Check<br/>Passed?}
+    HealthPass -->|Yes| NotifySuccess[Notify Success<br/>Comment on PR]
+    HealthPass -->|No| Rollback[Rollback Deployment]
+    Rollback --> NotifyFailure[Notify Failure]
+    NotifySuccess --> End2[Deployment Complete]
+    NotifyFailure --> End3[Deployment Failed]
     
-    # Security headers
-    header {
-        # Enable HSTS
-        Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
-        # Prevent clickjacking
-        X-Frame-Options "DENY"
-        # XSS protection
-        X-Content-Type-Options "nosniff"
-        # Referrer policy
-        Referrer-Policy "strict-origin-when-cross-origin"
-    }
+    subgraph Infrastructure["Infrastructure Stage"]
+        TerraformInit
+        TerraformValidate
+        TerraformPlan
+        TerraformApply
+        GetVMIP
+    end
     
-    # Rate limiting
-    rate_limit {
-        zone dynamic {
-            key {remote_host}
-            events 50
-            window 1m
-        }
-    }
+    subgraph Application["Application Deployment Stage"]
+        SetupSSH
+        CloneRepo
+        PullImages
+        DeployApp
+    end
     
-    # Reverse proxy to Vaultwarden
-    reverse_proxy vaultwarden:80 {
-        header_up X-Real-IP {remote_host}
-        header_up X-Forwarded-For {remote_host}
-        header_up X-Forwarded-Proto {scheme}
-    }
+    subgraph Verification["Verification Stage"]
+        WaitServices
+        HealthCheck
+        HealthPass
+    end
     
-    # WebSocket support for real-time sync
-    reverse_proxy /notifications/hub vaultwarden:3012 {
-        transport http {
-            versions h2c
-        }
-    }
-}
-
-# Redirect HTTP to HTTPS
-http://your-domain.com {
-    redir https://your-domain.com{uri} permanent
-}
-```
-
-#### 3.4.2 Alternative: Nginx Configuration
-
-**Note**: Caddy is the recommended reverse proxy for automatic SSL certificate management. If you prefer to use Nginx, see [Reverse Proxy Comparison](docs/reverse-proxy-comparison.md) for complete Nginx configuration, Certbot setup, and migration guide.
-
-### 3.5 Deployment Procedure
-
-**Deployment Methods:**
-
-1. **Automated Deployment (Recommended)**: Using Infrastructure as Code (Terraform) and CI/CD pipelines - see Section 3.7
-2. **Manual Deployment**: Step-by-step setup on pre-provisioned VM - see steps below
-
-For automated deployment, follow the [Terraform Guide](docs/terraform-guide.md) and [CI/CD Pipelines Guide](docs/cicd-pipelines.md). The manual deployment procedure below is provided as an alternative.
-
-#### 3.5.1 Initial Setup Script (`scripts/setup.sh`)
-
-```bash
-#!/bin/bash
-set -e
-
-# Update system
-sudo apt-get update && sudo apt-get upgrade -y
-
-# Install Docker
-if ! command -v docker &> /dev/null; then
-    curl -fsSL https://get.docker.com -o get-docker.sh
-    sudo sh get-docker.sh
-    sudo usermod -aG docker $USER
-    rm get-docker.sh
-fi
-
-# Install Docker Compose
-if ! command -v docker-compose &> /dev/null; then
-    sudo curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
-    sudo chmod +x /usr/local/bin/docker-compose
-fi
-
-# Install Rclone
-if ! command -v rclone &> /dev/null; then
-    curl https://rclone.org/install.sh | sudo bash
-fi
-
-# Install GPG (if not present)
-sudo apt-get install -y gnupg2
-
-# Create directory structure
-sudo mkdir -p /opt/vaultwarden/{caddy/{data,config},vaultwarden/data,scripts,backups}
-sudo chown -R $USER:$USER /opt/vaultwarden
-
-# Generate admin token
-ADMIN_TOKEN=$(openssl rand -base64 48)
-echo "ADMIN_TOKEN=$ADMIN_TOKEN" > /opt/vaultwarden/.env
-echo "DOMAIN=https://your-domain.com" >> /opt/vaultwarden/.env
-echo "BACKUP_RETENTION_DAYS=30" >> /opt/vaultwarden/.env
-
-# Configure firewall
-sudo ufw allow 80/tcp
-sudo ufw allow 443/tcp
-sudo ufw --force enable
-
-echo "Setup complete. Please:"
-echo "1. Edit /opt/vaultwarden/.env with your domain"
-echo "2. Configure Rclone: rclone config"
-echo "3. Set up GPG encryption key"
-echo "4. Run: cd /opt/vaultwarden && docker-compose up -d"
+    style Start fill:#e1f5ff
+    style End2 fill:#d4edda
+    style End3 fill:#f8d7da
+    style Rollback fill:#fff3cd
 ```
 
-#### 3.5.2 Deployment Steps
+**Pipeline Stages:**
 
-**Recommended: Automated Deployment**
+1. **Infrastructure Stage**: Terraform provisions or updates Azure resources (VM, networking, security groups)
+2. **Application Deployment Stage**: Application code is deployed to the VM via SSH
+3. **Verification Stage**: Health checks verify the deployment succeeded
 
-For production deployments, automated deployment using Infrastructure as Code and CI/CD is recommended. See Section 3.7 and follow:
-- [Terraform Guide](docs/terraform-guide.md) for infrastructure automation
-- [CI/CD Pipelines Guide](docs/cicd-pipelines.md) for deployment automation
-- [plan.md](plan.md) for automated deployment checklist
+For detailed implementation steps, see [plan.md](plan.md) and [CI/CD Pipelines Guide](docs/cicd-pipelines.md).
 
-**Alternative: Manual Deployment**
+#### 3.5.2 Manual Deployment (Alternative)
 
-For manual deployment on a pre-provisioned VM:
+**Requirements:**
+- Must support deployment on pre-provisioned VM
+- Must provide setup script for initial server configuration
+- Must support step-by-step manual configuration
+- Must allow manual verification at each step
 
-1. **Provision VM**: Create Ubuntu 22.04 LTS VM on Azure (or any provider)
-2. **DNS Configuration**: Point domain A record to VM's public IP
-3. **Run Setup Script**: Execute `scripts/setup.sh` on the VM
-4. **Configure Environment**: Edit `.env` file with actual domain and generate secrets
-5. **Configure Rclone**: Run `rclone config` to set up Google Drive connection
-6. **Set Up GPG**: Generate or import GPG key for backup encryption
-7. **Deploy Services**: Run `docker-compose up -d`
-8. **Verify Deployment**: Access `https://your-domain.com` and create admin account
-9. **Disable Signups**: Set `SIGNUPS_ALLOWED=false` in docker-compose.yml (already set)
-10. **Configure Backup Cron**: Add backup script to crontab
+For detailed implementation steps, see [plan.md](plan.md).
 
-### 3.6 Resource Tagging and Cost Management
 
-#### 3.6.1 Azure Resource Tags
+### 3.6 Resource Management Requirements
 
-All Azure resources should be tagged for cost tracking and resource management:
+#### 3.6.1 Resource Tagging
 
-| Tag Key | Tag Value | Purpose |
-|---------|-----------|---------|
+All cloud resources must be tagged with the following tags for cost tracking and management:
+
+| Tag Key | Required Value | Purpose |
+|---------|---------------|---------|
 | `Project` | `password-manager` | Project identification |
 | `Environment` | `production` | Environment classification |
 | `Component` | `vaultwarden` | Application component |
 | `ManagedBy` | `terraform` or `manual` | Management method |
 | `CostCenter` | `personal` | Cost allocation |
 | `Backup` | `enabled` | Backup status |
-| `Owner` | `<your-email>` | Resource owner |
+| `Owner` | `<email>` | Resource owner |
 
-#### 3.6.2 Cost Estimation and Analysis
+#### 3.6.2 Cost Constraints
 
-**Azure VM Cost Breakdown (India Central/South Region):**
+- **Monthly Budget**: ₹4,500/month Azure credits
+- **Target Cost**: ₹3,000 - ₹4,600/month for recommended setup
+- **Cost Monitoring**: Must implement cost alerts at 89% and 98% of monthly credits
+- **Cost Tracking**: Must use resource tags for cost analysis
 
-| Resource | SKU | Monthly Cost (INR) | Notes |
-|----------|-----|-------------------|-------|
-| **Virtual Machine** | Standard_B2s (2 vCPU, 4 GB RAM) | ₹2,200 - ₹2,800 | Pay-as-you-go pricing |
-| **OS Disk** | Premium SSD 64 GB | ₹600 - ₹800 | Managed disk |
-| **Data Disk** | Standard HDD 50 GB (optional) | ₹200 - ₹300 | For attachments |
-| **Public IP** | Basic Static IP | ₹0 - ₹200 | First 5 IPs free, then charged |
-| **Bandwidth** | Outbound data transfer | ₹0 - ₹500 | First 5 GB free/month |
-| **Network Security Group** | NSG rules | ₹0 | Free |
-| **Total Estimated Monthly Cost** | | **₹3,000 - ₹4,600** | Varies by usage |
+For detailed cost breakdown, optimization strategies, and monitoring setup, see [Cost Analysis](docs/cost-analysis.md) and [plan.md](plan.md).
 
-#### 3.6.3 INR 4,500 Monthly Azure Credits Sufficiency
+### 3.7 Post-Deployment Requirements
 
-**Answer: Yes, sufficient for recommended setup**
+#### 3.7.1 Initial Configuration
 
-- **Recommended Setup**: Standard_B2s (2 vCPU, 4 GB RAM)
-- **Monthly Cost**: ₹3,000 - ₹4,600
-- **Credits Coverage**: 98% - 150% of monthly cost
-- **Verdict**: ✅ **Fully covered** with ₹0 - ₹1,500/month buffer
+After deployment, the following must be configured:
 
-For detailed cost analysis, provider comparisons, optimization strategies, and future planning scenarios, see [Cost Analysis](docs/cost-analysis.md).
+- **Admin Account**: First user account must be created via admin panel
+- **Backup Automation**: Nightly backup cron job must be configured
+- **Health Monitoring**: Optional health check monitoring must be available
 
-#### 3.6.4 Cost Monitoring Setup
+#### 3.7.2 Backup Requirements
 
-**Azure Cost Alerts:**
+- Backups must run automatically on a schedule (recommended: nightly at 2 AM)
+- Backups must include SQLite database and attachments
+- Backups must be encrypted before upload
+- Backups must be uploaded to Google Drive via Rclone
+- Backup retention must be configurable (default: 30 days)
 
-1. Navigate to Azure Portal → Cost Management + Billing
-2. Create budget alert at ₹4,000 (89% of monthly credits) - early warning
-3. Create critical alert at ₹4,400 (98% of monthly credits) - immediate action needed
-4. Set up email notifications
-5. Configure daily cost reports
-
-**Tag-based Cost Analysis:**
-
-```bash
-# Query costs by tag using Azure CLI
-az consumption usage list \
-  --start-date 2024-01-01 \
-  --end-date 2024-01-31 \
-  --query "[?tags.Project=='password-manager']"
-```
-
-For detailed cost monitoring setup and analysis, see [Cost Analysis](docs/cost-analysis.md).
-
-### 3.7 Infrastructure as Code (IaC) and CI/CD Automation
-
-**Recommended Deployment Method**
-
-Automated deployment using Infrastructure as Code and CI/CD pipelines is the recommended approach for production deployments. This method provides better reproducibility, version control, and disaster recovery capabilities compared to manual deployment.
-
-#### 3.7.1 Overview
-
-The deployment process can be fully automated using Infrastructure as Code (IaC) and CI/CD pipelines. This enables:
-- **One-command deployment** to any environment
-- **Version-controlled infrastructure** (Git-based)
-- **Repeatable migrations** across providers
-- **Automated testing** before production
-- **Disaster recovery** via pipeline redeployment
-
-#### 3.7.2 Terraform Infrastructure as Code
-
-Terraform enables automated infrastructure provisioning with version-controlled, repeatable deployments. The configuration includes:
-
-- **Infrastructure Resources**: VM, networking, security groups, public IP
-- **Cloud-Init Integration**: Automated VM setup on first boot
-- **Resource Tagging**: Cost tracking and management
-- **Remote State**: Optional Azure Storage backend for state management
-
-**Terraform Configuration Structure:**
-
-```
-infrastructure/
-├── terraform/
-│   ├── main.tf                 # Main infrastructure definition
-│   ├── variables.tf            # Input variables
-│   ├── outputs.tf              # Output values
-│   └── scripts/
-│       └── cloud-init.sh       # Bootstrap automation script
-```
-
-For complete Terraform code, variable explanations, cloud-init script details, and step-by-step implementation guide, see [Terraform Guide](docs/terraform-guide.md).
-
-#### 3.7.3 CI/CD Pipeline Automation
-
-CI/CD pipelines automate the deployment process, enabling one-command deployment with automated testing and health verification.
-
-**Available Options:**
-- **GitHub Actions**: Complete workflow for Terraform plan/apply and application deployment
-- **Azure DevOps**: Alternative pipeline with similar capabilities
-
-**Key Benefits:**
-- Reproducible deployments across environments
-- Version-controlled infrastructure changes
-- Automated health checks
-- Disaster recovery via pipeline redeployment
-
-For complete GitHub Actions and Azure DevOps pipeline configurations, required secrets setup, and best practices, see [CI/CD Pipelines Guide](docs/cicd-pipelines.md).
-
-#### 3.7.4 Deployment Automation Benefits
-
-**Advantages of IaC + CI/CD Approach:**
-
-1. **Reproducibility**: Same infrastructure can be deployed to any environment
-2. **Version Control**: Infrastructure changes tracked in Git
-3. **Rollback Capability**: Revert to previous infrastructure state
-4. **Multi-Cloud Support**: Same Terraform code works for Azure, AWS, GCP
-5. **Cost Optimization**: Infrastructure costs visible in code
-6. **Security**: Infrastructure changes reviewed via pull requests
-7. **Disaster Recovery**: Complete environment recreation in minutes
-8. **Compliance**: Infrastructure as code meets audit requirements
-
-**Migration Workflow:**
-
-```bash
-# Deploy to Azure
-terraform apply -var="provider=azure"
-
-# Deploy to AWS (same code, different provider)
-terraform apply -var="provider=aws"
-
-# Deploy to local machine (Docker only)
-docker-compose up -d
-```
-
-### 3.8 Post-Deployment Configuration
-
-#### 3.8.1 Initial Admin Account
-
-1. Access `https://your-domain.com/admin` using the `ADMIN_TOKEN` from `.env`
-2. Create the first user account through the admin panel
-3. Verify signups are disabled (should show error if attempting public signup)
-
-#### 3.8.2 Backup Automation Setup
-
-Add to crontab (`crontab -e`):
-
-```bash
-# Nightly backup at 2 AM
-0 2 * * * /opt/vaultwarden/scripts/backup.sh >> /var/log/vaultwarden-backup.log 2>&1
-```
+For detailed backup and disaster recovery procedures, see Section 5 and [plan.md](plan.md).
 
 ## 4. Security Specification
 
@@ -648,16 +496,14 @@ Vaultwarden implements a zero-knowledge architecture where:
 
 ### 4.2 Network Security
 
-#### 4.2.1 Firewall Configuration
+#### 4.2.1 Firewall Requirements
 
-```bash
-# UFW Configuration
-sudo ufw default deny incoming
-sudo ufw default allow outgoing
-sudo ufw allow 80/tcp comment 'HTTP for Let's Encrypt'
-sudo ufw allow 443/tcp comment 'HTTPS'
-sudo ufw enable
-```
+- **Default Policy**: Must deny all incoming traffic by default
+- **Outbound Traffic**: Must allow all outbound traffic
+- **Allowed Ports**: Only ports 80 (HTTP) and 443 (HTTPS) must be open
+- **Firewall Tool**: UFW (Uncomplicated Firewall) must be configured and enabled
+
+For firewall configuration steps, see [plan.md](plan.md).
 
 #### 4.2.2 TLS/SSL Configuration
 
@@ -723,7 +569,9 @@ sudo ufw enable
 
 #### 4.5.2 Security Updates
 
-- **Container Updates**: Automated via Watchtower (daily checks)
+- **Container Updates**: 
+  - Vaultwarden: Manual updates with version pinning (see [plan.md](plan.md) Section "Vaultwarden Update Procedure")
+  - Caddy & Watchtower: Automated via Watchtower (daily checks)
 - **OS Updates**: Manual or automated via unattended-upgrades
 - **Dependency Updates**: Handled through container image updates
 
@@ -747,88 +595,18 @@ The backup process captures:
 
 For detailed information on attachments architecture, encryption, size limits, and optimization, see [Attachments Explained](docs/attachments-explained.md).
 
-#### 5.1.2 Backup Script Architecture (`scripts/backup.sh`)
+#### 5.1.2 Backup Process Requirements
 
-```bash
-#!/bin/bash
-set -e
+The backup process must:
+- Create SQLite database backup using `.backup` command
+- Archive attachments directory
+- Create backup manifest with metadata
+- Encrypt backup using GPG (AES-256)
+- Upload encrypted backup to Google Drive via Rclone
+- Clean up local temporary files after successful upload
+- Apply retention policy to remove old backups
 
-# Configuration
-BACKUP_DIR="/opt/vaultwarden/backups"
-VAULTWARDEN_DATA="/opt/vaultwarden/vaultwarden/data"
-RCLONE_REMOTE="${RCLONE_REMOTE_NAME:-gdrive}"
-RETENTION_DAYS="${BACKUP_RETENTION_DAYS:-30}"
-ENCRYPTION_KEY="${BACKUP_ENCRYPTION_KEY}"
-
-# Timestamp for backup filename
-TIMESTAMP=$(date +%Y%m%d_%H%M%S)
-BACKUP_NAME="vaultwarden_backup_${TIMESTAMP}"
-BACKUP_PATH="${BACKUP_DIR}/${BACKUP_NAME}"
-
-# Create backup directory
-mkdir -p "${BACKUP_PATH}"
-
-# Backup SQLite database
-echo "[$(date)] Starting database backup..."
-sqlite3 "${VAULTWARDEN_DATA}/db.sqlite3" ".backup '${BACKUP_PATH}/db.sqlite3'"
-
-# Backup attachments
-echo "[$(date)] Starting attachments backup..."
-if [ -d "${VAULTWARDEN_DATA}/attachments" ]; then
-    tar -czf "${BACKUP_PATH}/attachments.tar.gz" -C "${VAULTWARDEN_DATA}" attachments
-fi
-
-# Create backup manifest
-cat > "${BACKUP_PATH}/manifest.json" <<EOF
-{
-    "timestamp": "${TIMESTAMP}",
-    "date": "$(date -Iseconds)",
-    "database": "db.sqlite3",
-    "attachments": "attachments.tar.gz",
-    "version": "1.0"
-}
-EOF
-
-# Create archive
-echo "[$(date)] Creating backup archive..."
-cd "${BACKUP_DIR}"
-tar -czf "${BACKUP_NAME}.tar.gz" "${BACKUP_NAME}"
-
-# Encrypt backup
-echo "[$(date)] Encrypting backup..."
-if [ -n "${ENCRYPTION_KEY}" ]; then
-    # Using GPG with passphrase
-    gpg --batch --yes --passphrase "${ENCRYPTION_KEY}" \
-        --symmetric --cipher-algo AES256 \
-        "${BACKUP_NAME}.tar.gz"
-    ENCRYPTED_FILE="${BACKUP_NAME}.tar.gz.gpg"
-else
-    # Using GPG with key ID
-    gpg --encrypt --recipient "${ENCRYPTION_KEY}" \
-        --output "${BACKUP_NAME}.tar.gz.gpg" \
-        "${BACKUP_NAME}.tar.gz"
-fi
-
-# Upload to Google Drive
-echo "[$(date)] Uploading to Google Drive..."
-rclone copy "${BACKUP_DIR}/${BACKUP_NAME}.tar.gz.gpg" \
-    "${RCLONE_REMOTE}:vaultwarden-backups/" \
-    --log-file="${BACKUP_DIR}/rclone.log"
-
-# Clean up local files
-echo "[$(date)] Cleaning up local files..."
-rm -rf "${BACKUP_PATH}"
-rm -f "${BACKUP_DIR}/${BACKUP_NAME}.tar.gz"
-rm -f "${BACKUP_DIR}/${BACKUP_NAME}.tar.gz.gpg"
-
-# Clean up old backups from Google Drive (retention policy)
-echo "[$(date)] Applying retention policy (${RETENTION_DAYS} days)..."
-rclone delete "${RCLONE_REMOTE}:vaultwarden-backups/" \
-    --min-age "${RETENTION_DAYS}d" \
-    --log-file="${BACKUP_DIR}/rclone.log"
-
-echo "[$(date)] Backup completed successfully"
-```
+For backup script implementation, see [plan.md](plan.md).
 
 #### 5.1.3 Backup Schedule
 
@@ -837,26 +615,16 @@ echo "[$(date)] Backup completed successfully"
 - **Storage Location**: Google Drive (encrypted)
 - **Local Storage**: Temporary only (deleted after upload)
 
-#### 5.1.4 Backup Encryption
+#### 5.1.4 Backup Encryption Requirements
 
-**Method 1: GPG with Passphrase**
+- **Encryption Method**: Must use GPG (GNU Privacy Guard)
+- **Encryption Algorithm**: AES-256
+- **Key Management**: Supports two methods:
+  - **Passphrase**: Cryptographically secure random passphrase
+  - **Key Pair**: GPG key pair with public key export capability
+- **Encryption Key Storage**: Must be stored in `.env` file with restricted permissions
 
-```bash
-# Generate encryption passphrase
-BACKUP_ENCRYPTION_KEY=$(openssl rand -base64 32)
-echo "BACKUP_ENCRYPTION_KEY=${BACKUP_ENCRYPTION_KEY}" >> .env
-```
-
-**Method 2: GPG with Key Pair**
-
-```bash
-# Generate GPG key pair
-gpg --full-generate-key
-# Export public key for backup
-gpg --export --armor your-email@example.com > backup-public-key.asc
-# Use key ID in .env
-BACKUP_ENCRYPTION_KEY=<key-id-from-gpg-list-keys>
-```
+For encryption key generation steps, see [plan.md](plan.md).
 
 ### 5.2 Disaster Recovery
 
@@ -869,143 +637,27 @@ The system supports recovery from:
 3. **Accidental Deletion**: Restore from point-in-time backup
 4. **Ransomware Attack**: Restore from encrypted backup (server compromise)
 
-#### 5.2.2 One-Command Restore Script (`scripts/restore.sh`)
+#### 5.2.2 Restore Process Requirements
 
-```bash
-#!/bin/bash
-set -e
+The restore process must:
+- Download encrypted backup from Google Drive
+- Decrypt backup using GPG with stored encryption key
+- Extract backup archive
+- Stop Vaultwarden container before restore
+- Restore SQLite database to data directory
+- Restore attachments directory
+- Restart Vaultwarden container
+- Clean up temporary files
 
-# Configuration
-BACKUP_DIR="/opt/vaultwarden/backups"
-VAULTWARDEN_DATA="/opt/vaultwarden/vaultwarden/data"
-RCLONE_REMOTE="${RCLONE_REMOTE_NAME:-gdrive}"
-ENCRYPTION_KEY="${BACKUP_ENCRYPTION_KEY}"
+For restore script implementation and step-by-step procedures, see [plan.md](plan.md).
 
-# Check if backup file is provided
-if [ -z "$1" ]; then
-    echo "Usage: $0 <backup-filename> [restore-path]"
-    echo ""
-    echo "Available backups:"
-    rclone lsf "${RCLONE_REMOTE}:vaultwarden-backups/" | grep "\.gpg$"
-    exit 1
-fi
+#### 5.2.3 Backup Verification Requirements
 
-BACKUP_FILE="$1"
-RESTORE_PATH="${2:-${BACKUP_DIR}}"
+- **Frequency**: Monthly verification recommended
+- **Verification Steps**: Must verify database integrity and attachment presence
+- **Testing**: Optional test restore on isolated environment
 
-# Download backup from Google Drive
-echo "[$(date)] Downloading backup from Google Drive..."
-mkdir -p "${RESTORE_PATH}"
-rclone copy "${RCLONE_REMOTE}:vaultwarden-backups/${BACKUP_FILE}" \
-    "${RESTORE_PATH}/" \
-    --log-file="${RESTORE_PATH}/rclone-restore.log"
-
-DOWNLOADED_FILE="${RESTORE_PATH}/${BACKUP_FILE}"
-
-# Decrypt backup
-echo "[$(date)] Decrypting backup..."
-DECRYPTED_FILE="${DOWNLOADED_FILE%.gpg}"
-if [ -n "${ENCRYPTION_KEY}" ]; then
-    # Using GPG with passphrase
-    gpg --batch --yes --passphrase "${ENCRYPTION_KEY}" \
-        --decrypt "${DOWNLOADED_FILE}" > "${DECRYPTED_FILE}"
-else
-    # Using GPG with key
-    gpg --decrypt --output "${DECRYPTED_FILE}" "${DOWNLOADED_FILE}"
-fi
-
-# Extract backup
-echo "[$(date)] Extracting backup..."
-EXTRACT_DIR="${RESTORE_PATH}/restore_$(date +%Y%m%d_%H%M%S)"
-mkdir -p "${EXTRACT_DIR}"
-tar -xzf "${DECRYPTED_FILE}" -C "${EXTRACT_DIR}"
-
-# Find backup directory
-BACKUP_CONTENT=$(find "${EXTRACT_DIR}" -type d -name "vaultwarden_backup_*" | head -1)
-if [ -z "${BACKUP_CONTENT}" ]; then
-    echo "Error: Could not find backup content directory"
-    exit 1
-fi
-
-# Stop Vaultwarden container
-echo "[$(date)] Stopping Vaultwarden container..."
-cd /opt/vaultwarden
-docker-compose stop vaultwarden
-
-# Restore database
-echo "[$(date)] Restoring database..."
-if [ -f "${BACKUP_CONTENT}/db.sqlite3" ]; then
-    cp "${BACKUP_CONTENT}/db.sqlite3" "${VAULTWARDEN_DATA}/db.sqlite3"
-    chown -R $(id -u):$(id -g) "${VAULTWARDEN_DATA}/db.sqlite3"
-fi
-
-# Restore attachments
-echo "[$(date)] Restoring attachments..."
-if [ -f "${BACKUP_CONTENT}/attachments.tar.gz" ]; then
-    rm -rf "${VAULTWARDEN_DATA}/attachments"
-    tar -xzf "${BACKUP_CONTENT}/attachments.tar.gz" -C "${VAULTWARDEN_DATA}"
-    chown -R $(id -u):$(id -g) "${VAULTWARDEN_DATA}/attachments"
-fi
-
-# Start Vaultwarden container
-echo "[$(date)] Starting Vaultwarden container..."
-docker-compose start vaultwarden
-
-# Clean up
-echo "[$(date)] Cleaning up temporary files..."
-rm -rf "${EXTRACT_DIR}"
-rm -f "${DOWNLOADED_FILE}" "${DECRYPTED_FILE}"
-
-echo "[$(date)] Restore completed successfully"
-echo "Vaultwarden is now running with restored data"
-```
-
-#### 5.2.3 Restore Procedure
-
-**Step 1: Prepare New Environment**
-
-```bash
-# On new VM, run setup script
-./scripts/setup.sh
-
-# Configure Rclone
-rclone config
-
-# Set encryption key in .env
-echo "BACKUP_ENCRYPTION_KEY=<your-key>" >> /opt/vaultwarden/.env
-```
-
-**Step 2: List Available Backups**
-
-```bash
-cd /opt/vaultwarden
-./scripts/restore.sh
-# This will list all available backups
-```
-
-**Step 3: Execute Restore**
-
-```bash
-# Restore specific backup
-./scripts/restore.sh vaultwarden_backup_20240115_020000.tar.gz.gpg
-```
-
-**Step 4: Verify Restore**
-
-1. Access `https://your-domain.com`
-2. Verify user accounts are present
-3. Verify password entries are accessible
-4. Check attachment storage
-
-#### 5.2.4 Backup Verification
-
-**Monthly Verification Procedure:**
-
-1. Download latest backup from Google Drive
-2. Decrypt and extract backup
-3. Verify database integrity: `sqlite3 db.sqlite3 "PRAGMA integrity_check;"`
-4. Verify attachment files are present
-5. Test restore on isolated test environment (optional)
+For backup verification procedures, see [plan.md](plan.md).
 
 ### 5.3 Backup Storage Security
 
@@ -1028,14 +680,36 @@ cd /opt/vaultwarden
 
 #### 6.1.1 Watchtower Configuration
 
-Watchtower automatically monitors and updates containers:
+Watchtower automatically monitors and updates containers (Caddy and Watchtower only):
 
 - **Update Check**: Daily at 2:00 AM (configurable)
 - **Update Strategy**: Pull latest image and restart container
 - **Cleanup**: Removes old images after update
 - **Notifications**: Optional email/webhook notifications
+- **Vaultwarden Exclusion**: Watchtower is disabled for Vaultwarden container (label: `com.centurylinklabs.watchtower.enable=false`)
 
-#### 6.1.2 Update Process
+#### 6.1.2 Vaultwarden Update Strategy
+
+Vaultwarden uses **version pinning** with manual updates for controlled deployment:
+
+- **Image Tag**: Pinned to specific stable version (e.g., `vaultwarden/server:1.30.0`)
+- **Update Method**: Manual updates after reviewing release notes
+- **Update Source**: [Vaultwarden GitHub Releases](https://github.com/dani-garcia/vaultwarden/releases)
+- **Update Frequency**: 
+  - Security patches: Within 7 days (critical patches: 24-48 hours)
+  - Stable releases: Monthly review recommended
+- **Pre-Update Requirement**: Backup must be created before any update
+- **Update Procedure**: See [plan.md](plan.md) Section "Vaultwarden Update Procedure" for detailed steps
+
+**Rationale**: Version pinning provides:
+- Control over update timing
+- Ability to review release notes and breaking changes
+- Opportunity to test updates before production deployment
+- Reduced risk of unexpected updates breaking functionality
+
+#### 6.1.3 Update Process (Watchtower-managed containers)
+
+For containers managed by Watchtower (Caddy, Watchtower):
 
 1. Watchtower checks for new image versions
 2. Downloads new image if available
@@ -1043,23 +717,29 @@ Watchtower automatically monitors and updates containers:
 4. Starts new container with same configuration
 5. Removes old image to save disk space
 
-#### 6.1.3 Update Verification
+#### 6.1.4 Vaultwarden Update Verification
 
-After automatic update:
+After manual Vaultwarden update:
 
 1. Check container logs: `docker logs vaultwarden`
 2. Verify service accessibility: `curl https://your-domain.com`
 3. Test authentication with client
-4. Monitor for 24 hours for any issues
+4. Verify WebSocket connection (real-time sync)
+5. Monitor for 24 hours for any issues
+6. Verify backup was successful before update
 
-#### 6.1.4 Manual Update Override
+#### 6.1.5 Manual Update Procedure
 
-To manually trigger update:
+For Vaultwarden updates, follow the detailed procedure in [plan.md](plan.md) Section "Vaultwarden Update Procedure". Quick reference:
 
 ```bash
 cd /opt/vaultwarden
-docker-compose pull
-docker-compose up -d
+./scripts/backup.sh  # Always backup first!
+# Update version in docker-compose.yml
+docker-compose pull vaultwarden
+docker-compose stop vaultwarden
+docker-compose up -d vaultwarden
+docker-compose logs -f vaultwarden  # Monitor for errors
 ```
 
 ### 6.2 Monitoring & Health Checks

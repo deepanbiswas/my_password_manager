@@ -43,30 +43,24 @@ This checklist supports two deployment approaches:
   ```
 
 **Create Terraform Configuration Files:**
-- [ ] Create `infrastructure/terraform/main.tf` - Copy complete configuration from [Terraform Guide - Main Configuration](docs/terraform-guide.md#main-configuration-infrastructureterraformmaintf)
+- [ ] Create `infrastructure/terraform/main.tf` - Copy provider and backend configuration from [Terraform Guide - Main Configuration](docs/terraform-guide.md#main-configuration-infrastructureterraformmaintf)
+- [ ] Create `infrastructure/terraform/azure.tf` - Copy Azure-specific resources from [Terraform Guide - Azure Resources](docs/terraform-guide.md#azure-resources-infrastructureterraformazuretf)
+  - **Note**: This file contains all Azure vendor-specific resources (resource group, network, VM, etc.)
+  - Separating vendor-specific code makes it easier to add support for other cloud providers (AWS, GCP) in the future
 - [ ] Create `infrastructure/terraform/variables.tf` - Copy from [Terraform Guide - Variables File](docs/terraform-guide.md#variables-file-infrastructureterraformvariablestf)
-- [ ] Create `infrastructure/terraform/outputs.tf` - Extract outputs section from main.tf or create separate file with:
-  ```hcl
-  output "vm_public_ip" {
-    value       = azurerm_public_ip.main.ip_address
-    description = "Public IP address of the VM"
-  }
-  
-  output "vm_ssh_command" {
-    value       = "ssh ${var.admin_username}@${azurerm_public_ip.main.ip_address}"
-    description = "SSH command to connect to the VM"
-  }
-  ```
+- [ ] Create `infrastructure/terraform/outputs.tf` - Copy from [Terraform Guide - Outputs File](docs/terraform-guide.md#outputs-file-infrastructureterraformoutputstf)
 
 **Create Cloud-Init Script:**
 - [ ] Create `infrastructure/terraform/scripts/cloud-init.sh` - Copy complete script from [Terraform Guide - Cloud-Init Script](docs/terraform-guide.md#cloud-init-script-infrastructureterraformscriptscloud-initsh)
 - [ ] Make script executable: `chmod +x infrastructure/terraform/scripts/cloud-init.sh`
-- [ ] **Important**: The `main.tf` file references this script via `templatefile("${path.module}/scripts/cloud-init.sh", {...})`, so it must exist before running `terraform plan`
+- [ ] **Important**: The `azure.tf` file references this script via `templatefile("${path.module}/scripts/cloud-init.sh", {...})`, so it must exist before running `terraform plan`
 
 **Create Deployment Templates:**
 - [ ] Create templates directory: `mkdir -p infrastructure/terraform/templates`
 - [ ] Create `infrastructure/terraform/templates/docker-compose.yml.template` - Copy from [Manual Deployment - Docker Compose Configuration](#docker-compose-configuration-docker-composeyml) and replace:
   - `https://your-domain.com` → `{{DOMAIN}}`
+  - `vaultwarden/server:latest` → `vaultwarden/server:1.30.0` (or latest stable version - check [Vaultwarden Releases](https://github.com/dani-garcia/vaultwarden/releases))
+  - `com.centurylinklabs.watchtower.enable=true` → `com.centurylinklabs.watchtower.enable=false` (for Vaultwarden service)
   - Keep `${ADMIN_TOKEN}` as-is (will be replaced from .env)
 - [ ] Create `infrastructure/terraform/templates/Caddyfile.template` - Copy from [Manual Deployment - Caddyfile Configuration](#caddyfile-configuration-caddycaddyfile) and replace:
   - `your-domain.com` → `{{DOMAIN_NAME}}` (domain without https://)
@@ -287,7 +281,7 @@ version: '3.8'
 
 services:
   vaultwarden:
-    image: vaultwarden/server:latest
+    image: vaultwarden/server:1.30.0  # Pin to specific stable version (check https://github.com/dani-garcia/vaultwarden/releases for latest)
     container_name: vaultwarden
     restart: unless-stopped
     environment:
@@ -301,7 +295,7 @@ services:
     networks:
       - vaultwarden-network
     labels:
-      - "com.centurylinklabs.watchtower.enable=true"
+      - "com.centurylinklabs.watchtower.enable=false"  # Disabled: Vaultwarden uses version pinning for controlled updates
 
   caddy:
     image: caddy:latest
@@ -808,3 +802,110 @@ After successful deployment:
 | **Best For** | Production, long-term use | Testing, quick setup |
 
 **Recommendation**: Use automated deployment for production environments. Manual deployment is suitable for testing or when you prefer more control over each step.
+
+---
+
+## Vaultwarden Update Procedure
+
+Vaultwarden uses **version pinning** instead of automatic updates via Watchtower. This provides better control over when updates are applied, allowing you to review release notes and test updates before deploying to production.
+
+### Update Strategy
+
+- **Current Configuration**: Vaultwarden image is pinned to a specific version (e.g., `vaultwarden/server:1.30.0`)
+- **Watchtower**: Disabled for Vaultwarden (only updates Caddy and Watchtower itself)
+- **Update Frequency**: Manual updates when stable releases or security patches are available
+- **Update Source**: Monitor [Vaultwarden GitHub Releases](https://github.com/dani-garcia/vaultwarden/releases)
+
+### Step-by-Step Update Process
+
+**Step 1: Check for Updates**
+- [ ] Visit [Vaultwarden Releases](https://github.com/dani-garcia/vaultwarden/releases)
+- [ ] Review latest stable release notes
+- [ ] Check for security advisories or critical patches
+- [ ] Note the latest stable version number (e.g., `1.31.0`)
+
+**Step 2: Review Release Notes**
+- [ ] Read changelog for breaking changes
+- [ ] Check for database migration requirements
+- [ ] Review security fixes and improvements
+- [ ] Verify compatibility with your deployment
+
+**Step 3: Create Backup (Critical)**
+- [ ] Navigate to deployment directory: `cd /opt/vaultwarden`
+- [ ] Run backup script: `./scripts/backup.sh`
+- [ ] Verify backup uploaded to Google Drive: `rclone ls gdrive:vaultwarden-backups/ | tail -1`
+- [ ] **Important**: Always backup before updating
+
+**Step 4: Update docker-compose.yml**
+- [ ] Edit `docker-compose.yml`: `nano docker-compose.yml` or `vi docker-compose.yml`
+- [ ] Update Vaultwarden image version:
+  ```yaml
+  vaultwarden:
+    image: vaultwarden/server:1.31.0  # Update to new version
+  ```
+- [ ] Save and exit editor
+
+**Step 5: Pull and Deploy Update**
+- [ ] Pull new image: `docker-compose pull vaultwarden`
+- [ ] Stop Vaultwarden container: `docker-compose stop vaultwarden`
+- [ ] Start with new image: `docker-compose up -d vaultwarden`
+- [ ] Verify container started: `docker-compose ps`
+
+**Step 6: Verify Update**
+- [ ] Check container logs: `docker-compose logs -f vaultwarden` (watch for errors)
+- [ ] Wait 30 seconds for service to start
+- [ ] Test web interface: `curl -I https://your-domain.com`
+- [ ] Verify admin panel: `https://your-domain.com/admin`
+- [ ] Test login from Bitwarden client
+- [ ] Verify WebSocket connection (real-time sync)
+
+**Step 7: Monitor Post-Update**
+- [ ] Monitor logs for 15 minutes: `docker-compose logs -f vaultwarden`
+- [ ] Check for error messages or warnings
+- [ ] Verify all features working (login, sync, attachments)
+- [ ] Monitor for 24 hours for any issues
+
+**Step 8: Rollback (If Needed)**
+If issues occur, rollback immediately:
+- [ ] Stop current container: `docker-compose stop vaultwarden`
+- [ ] Revert `docker-compose.yml` to previous version
+- [ ] Pull previous image: `docker-compose pull vaultwarden`
+- [ ] Start previous version: `docker-compose up -d vaultwarden`
+- [ ] Verify service restored: `curl https://your-domain.com`
+
+### Update Notification Setup (Optional)
+
+**GitHub Release Notifications:**
+- [ ] Subscribe to [Vaultwarden Releases RSS](https://github.com/dani-garcia/vaultwarden/releases.atom)
+- [ ] Or enable GitHub release notifications for the repository
+- [ ] Or check releases manually monthly
+
+**Security Patch Priority:**
+- [ ] Security patches should be applied within 7 days
+- [ ] Critical security patches should be applied within 24-48 hours
+- [ ] Always backup before applying security patches
+
+### Quick Update Command Reference
+
+```bash
+# Full update procedure (after reviewing release notes)
+cd /opt/vaultwarden
+./scripts/backup.sh  # Always backup first!
+nano docker-compose.yml  # Update version number
+docker-compose pull vaultwarden
+docker-compose stop vaultwarden
+docker-compose up -d vaultwarden
+docker-compose logs -f vaultwarden  # Monitor for errors
+```
+
+### Current Version Tracking
+
+**Note**: Update the version in `docker-compose.yml` when deploying. To check current running version:
+```bash
+docker inspect vaultwarden | grep -i image
+```
+
+**Version History** (update this section when you update):
+- Initial deployment: `1.30.0` (example - check actual latest version)
+- Last updated: [Date of last update]
+- Next check: [Schedule monthly review]

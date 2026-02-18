@@ -9,13 +9,10 @@ Terraform enables automated infrastructure provisioning for the password manager
 ```
 infrastructure/
 ├── terraform/
-│   ├── main.tf                 # Main infrastructure definition
+│   ├── main.tf                 # Provider configuration & backend only
+│   ├── azure.tf                # Azure-specific resources (vendor-specific)
 │   ├── variables.tf            # Input variables
 │   ├── outputs.tf              # Output values
-│   ├── providers.tf            # Provider configuration (optional, can be in main.tf)
-│   ├── vm.tf                   # VM resource definition (optional, can be in main.tf)
-│   ├── network.tf              # Network security group (optional, can be in main.tf)
-│   ├── tags.tf                 # Resource tagging (optional, can be in main.tf)
 │   ├── scripts/
 │   │   └── cloud-init.sh       # Cloud-init script for VM bootstrap
 │   └── templates/              # Deployment templates (used by CI/CD and manual deployment)
@@ -32,6 +29,8 @@ infrastructure/
 ## Complete Terraform Configuration
 
 ### Main Configuration (`infrastructure/terraform/main.tf`)
+
+This file contains only provider configuration and backend setup. All Azure-specific resources are in `azure.tf`.
 
 ```hcl
 terraform {
@@ -56,7 +55,13 @@ terraform {
 provider "azurerm" {
   features {}
 }
+```
 
+### Azure Resources (`infrastructure/terraform/azure.tf`)
+
+This file contains all Azure-specific infrastructure resources. Separating vendor-specific resources makes it easier to add support for other cloud providers (AWS, GCP) in the future.
+
+```hcl
 # Resource Group
 resource "azurerm_resource_group" "main" {
   name     = "rg-password-manager-${var.environment}"
@@ -200,7 +205,7 @@ resource "azurerm_linux_virtual_machine" "main" {
   
   # Custom data script for initial setup
   custom_data = base64encode(templatefile("${path.module}/scripts/cloud-init.sh", {
-    domain = var.domain
+    admin_username = var.admin_username
   }))
   
   tags = merge(azurerm_resource_group.main.tags, {
@@ -208,8 +213,13 @@ resource "azurerm_linux_virtual_machine" "main" {
     Backup    = "enabled"
   })
 }
+```
 
-# Outputs
+**Note**: The `custom_data` field references the cloud-init script. Ensure `scripts/cloud-init.sh` exists before running `terraform plan`.
+
+### Outputs File (`infrastructure/terraform/outputs.tf`)
+
+```hcl
 output "vm_public_ip" {
   value       = azurerm_public_ip.main.ip_address
   description = "Public IP address of the VM"
