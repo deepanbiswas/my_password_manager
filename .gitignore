@@ -1,0 +1,54 @@
+# Environment variables and secrets
+.env
+*.env
+.env.local
+.env.*.local
+
+# Terraform state files
+*.tfstate
+*.tfstate.*
+.terraform/
+.terraform.lock.hcl
+
+# Backup files
+backups/
+*.backup
+*.bak
+
+# Logs
+*.log
+logs/
+
+# OS files
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+
+# IDE files
+.vscode/
+.idea/
+*.iml
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# Docker volumes (if any)
+docker-volumes/
+
+# SSH keys (if stored locally)
+*.pem
+*.key
+id_rsa
+id_rsa.pub
+
+# Rclone config (contains credentials)
+.rclone.conf
+
+# GPG keys (if stored locally)
+*.gpg
+*.asc
+private-keys/
