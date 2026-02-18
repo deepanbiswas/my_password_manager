@@ -117,20 +117,102 @@ jobs:
         with:
           ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
       
-      - name: Deploy Application
+      - name: Deploy Application Configuration
         run: |
           ssh -o StrictHostKeyChecking=no ${{ secrets.VM_USERNAME }}@${{ steps.vm-ip.outputs.vm_ip }} << 'EOF'
+            set -e
             cd /opt/vaultwarden
-            git pull origin main || git clone https://github.com/${{ github.repository }}.git .
+            
+            # Clone or pull repository (contains templates)
+            if [ -d .git ]; then
+              git pull origin main
+            else
+              git clone https://github.com/${{ github.repository }}.git .
+            fi
+            
+            # Verify templates directory exists
+            if [ ! -d "infrastructure/terraform/templates" ]; then
+              echo "Error: Templates directory not found. Ensure templates are committed to repository."
+              exit 1
+            fi
+            
+            # Generate secrets if .env doesn't exist
+            if [ ! -f .env ]; then
+              ADMIN_TOKEN=$(openssl rand -base64 48)
+              BACKUP_ENCRYPTION_KEY=$(openssl rand -base64 32)
+              
+              # Generate .env from template
+              sed -e "s|{{ADMIN_TOKEN}}|${ADMIN_TOKEN}|g" \
+                  -e "s|{{DOMAIN}}|${{ secrets.DOMAIN }}|g" \
+                  -e "s|{{BACKUP_ENCRYPTION_KEY}}|${BACKUP_ENCRYPTION_KEY}|g" \
+                  infrastructure/terraform/templates/.env.template > .env
+              chmod 600 .env
+            fi
+            
+            # Source .env for variable substitution
+            set -a
+            source .env
+            set +a
+            
+            # Generate docker-compose.yml from template if it doesn't exist
+            if [ ! -f docker-compose.yml ]; then
+              sed -e "s|{{DOMAIN}}|${DOMAIN}|g" \
+                  -e "s|{{ADMIN_TOKEN}}|${ADMIN_TOKEN}|g" \
+                  infrastructure/terraform/templates/docker-compose.yml.template > docker-compose.yml
+            fi
+            
+            # Generate Caddyfile from template if it doesn't exist
+            mkdir -p caddy
+            DOMAIN_NAME=$(echo ${DOMAIN} | sed 's|https\?://||')
+            if [ ! -f caddy/Caddyfile ]; then
+              sed "s|{{DOMAIN_NAME}}|${DOMAIN_NAME}|g" \
+                  infrastructure/terraform/templates/Caddyfile.template > caddy/Caddyfile
+            fi
+            
+            # Deploy backup script from template if it doesn't exist
+            if [ ! -f scripts/backup.sh ]; then
+              mkdir -p scripts
+              cp infrastructure/terraform/templates/backup.sh.template scripts/backup.sh
+              chmod +x scripts/backup.sh
+            fi
+            
+            # Deploy health check script from template if it doesn't exist
+            if [ ! -f scripts/health-check.sh ]; then
+              sed "s|{{DOMAIN}}|${DOMAIN}|g" \
+                  infrastructure/terraform/templates/health-check.sh.template > scripts/health-check.sh
+              chmod +x scripts/health-check.sh
+            fi
+            
+            # Setup crontab entries if not already present
+            (crontab -l 2>/dev/null | grep -v "backup.sh" | grep -v "health-check.sh"; \
+             echo "0 2 * * * /opt/vaultwarden/scripts/backup.sh >> /var/log/vaultwarden-backup.log 2>&1"; \
+             echo "*/15 * * * * /opt/vaultwarden/scripts/health-check.sh >> /var/log/vaultwarden-health.log 2>&1") | crontab -
+            
+            # Pull latest images and start services
             docker-compose pull
             docker-compose up -d
+            
+            # Verify containers are running
+            sleep 5
+            docker-compose ps
           EOF
       
-      - name: Health Check
+      - name: Verify Deployment
         run: |
           VM_IP=$(terraform output -raw vm_public_ip)
           sleep 30  # Wait for services to start
-          curl -f https://${{ secrets.DOMAIN }} || exit 1
+          
+          # Health check
+          HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" https://${{ secrets.DOMAIN }})
+          if [ "$HTTP_CODE" != "200" ]; then
+            echo "Health check failed: HTTP $HTTP_CODE"
+            exit 1
+          fi
+          
+          # Verify containers are running
+          ssh -o StrictHostKeyChecking=no ${{ secrets.VM_USERNAME }}@$VM_IP "docker-compose -f /opt/vaultwarden/docker-compose.yml ps | grep -q 'Up' || exit 1"
+          
+          echo "✅ Deployment verified successfully"
       
       - name: Comment PR
         if: github.event_name == 'pull_request'
@@ -154,9 +236,10 @@ Configure these secrets in GitHub repository settings:
 - `AZURE_CLIENT_SECRET`: Service principal client secret
 - `AZURE_TENANT_ID`: Azure tenant ID
 - `AZURE_CREDENTIALS`: JSON credentials for Azure login
-- `DOMAIN`: Your domain name
+- `DOMAIN`: Your domain name (e.g., `https://your-domain.com`)
 - `SSH_PRIVATE_KEY`: Private SSH key for VM access
-- `VM_USERNAME`: VM admin username
+- `VM_USERNAME`: VM admin username (e.g., `azureuser`)
+- `ALERT_EMAIL`: (Optional) Email for health check alerts
 
 ### Setting Up GitHub Secrets
 

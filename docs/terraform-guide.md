@@ -12,12 +12,21 @@ infrastructure/
 │   ├── main.tf                 # Main infrastructure definition
 │   ├── variables.tf            # Input variables
 │   ├── outputs.tf              # Output values
-│   ├── providers.tf            # Provider configuration
-│   ├── vm.tf                   # VM resource definition
-│   ├── network.tf              # Network security group
-│   └── tags.tf                 # Resource tagging
+│   ├── providers.tf            # Provider configuration (optional, can be in main.tf)
+│   ├── vm.tf                   # VM resource definition (optional, can be in main.tf)
+│   ├── network.tf              # Network security group (optional, can be in main.tf)
+│   ├── tags.tf                 # Resource tagging (optional, can be in main.tf)
+│   ├── scripts/
+│   │   └── cloud-init.sh       # Cloud-init script for VM bootstrap
+│   └── templates/              # Deployment templates (used by CI/CD and manual deployment)
+│       ├── docker-compose.yml.template
+│       ├── Caddyfile.template
+│       ├── backup.sh.template
+│       ├── health-check.sh.template
+│       └── .env.template
+├── terraform.tfvars            # Variable values (create from example)
 ├── terraform.tfvars.example    # Example variable values
-└── terraform.tfstate           # State file (gitignored)
+└── terraform.tfstate           # State file (gitignored, auto-generated)
 ```
 
 ## Complete Terraform Configuration
@@ -286,8 +295,10 @@ mkdir -p /opt/vaultwarden/{caddy/{data,config},vaultwarden/data,scripts,backups}
 chown -R ${admin_username}:${admin_username} /opt/vaultwarden
 
 # Configure firewall
-ufw allow 80/tcp
-ufw allow 443/tcp
+ufw default deny incoming
+ufw default allow outgoing
+ufw allow 80/tcp comment 'HTTP for Let's Encrypt'
+ufw allow 443/tcp comment 'HTTPS'
 ufw --force enable
 
 # Log completion
