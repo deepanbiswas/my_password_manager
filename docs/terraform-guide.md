@@ -26,249 +26,115 @@ infrastructure/
 └── terraform.tfstate           # State file (gitignored, auto-generated)
 ```
 
-## Complete Terraform Configuration
+## Terraform Configuration Requirements
 
 ### Main Configuration (`infrastructure/terraform/main.tf`)
 
-This file contains only provider configuration and backend setup. All Azure-specific resources are in `azure.tf`.
+**Purpose**: Provider configuration and backend setup only
 
-```hcl
-terraform {
-  required_version = ">= 1.5.0"
-  
-  required_providers {
-    azurerm = {
-      source  = "hashicorp/azurerm"
-      version = "~> 3.0"
-    }
-  }
-  
-  # Optional: Remote state backend (Azure Storage)
-  backend "azurerm" {
-    resource_group_name  = "terraform-state-rg"
-    storage_account_name = "tfstate<unique-id>"
-    container_name       = "tfstate"
-    key                  = "password-manager.terraform.tfstate"
-  }
-}
+**Location**: `infrastructure/terraform/main.tf`
 
-provider "azurerm" {
-  features {}
-}
-```
+**Created During**: Step 1: Terraform Setup (see [plan.md](plan.md))
+
+**Requirements**:
+- **Terraform Version**: Require version >= 1.5.0
+- **Required Providers**: 
+  - `azurerm` provider (source: `hashicorp/azurerm`, version: `~> 3.0`)
+- **Backend Configuration** (Optional): Azure Storage backend for remote state
+  - Resource group: `terraform-state-rg`
+  - Storage account: `tfstate<unique-id>`
+  - Container: `tfstate`
+  - Key: `password-manager.terraform.tfstate`
+- **Provider Configuration**: Azure provider with default features
+
+**Note**: This file contains only provider and backend configuration. All Azure-specific resources are in `azure.tf`.
 
 ### Azure Resources (`infrastructure/terraform/azure.tf`)
 
-This file contains all Azure-specific infrastructure resources. Separating vendor-specific resources makes it easier to add support for other cloud providers (AWS, GCP) in the future.
+**Purpose**: All Azure-specific infrastructure resources
 
-```hcl
-# Resource Group
-resource "azurerm_resource_group" "main" {
-  name     = "rg-password-manager-${var.environment}"
-  location = var.location
-  
-  tags = {
-    Project     = "password-manager"
-    Environment = var.environment
-    Component   = "infrastructure"
-    ManagedBy   = "terraform"
-    CostCenter  = "personal"
-  }
-}
+**Location**: `infrastructure/terraform/azure.tf`
 
-# Virtual Network
-resource "azurerm_virtual_network" "main" {
-  name                = "vnet-password-manager"
-  address_space       = ["10.0.0.0/16"]
-  location            = azurerm_resource_group.main.location
-  resource_group_name = azurerm_resource_group.main.name
-  
-  tags = azurerm_resource_group.main.tags
-}
+**Created During**: Step 1: Terraform Setup (see [plan.md](plan.md))
 
-# Subnet
-resource "azurerm_subnet" "main" {
-  name                 = "subnet-password-manager"
-  resource_group_name  = azurerm_resource_group.main.name
-  virtual_network_name = azurerm_virtual_network.main.name
-  address_prefixes     = ["10.0.1.0/24"]
-}
+**Requirements**:
 
-# Network Security Group
-resource "azurerm_network_security_group" "main" {
-  name                = "nsg-password-manager"
-  location            = azurerm_resource_group.main.location
-  resource_group_name = azurerm_resource_group.main.name
-  
-  security_rule {
-    name                       = "AllowHTTP"
-    priority                   = 1000
-    direction                  = "Inbound"
-    access                     = "Allow"
-    protocol                   = "Tcp"
-    source_port_range          = "*"
-    destination_port_range     = "80"
-    source_address_prefix      = "*"
-    destination_address_prefix = "*"
-  }
-  
-  security_rule {
-    name                       = "AllowHTTPS"
-    priority                   = 1001
-    direction                  = "Inbound"
-    access                     = "Allow"
-    protocol                   = "Tcp"
-    source_port_range          = "*"
-    destination_port_range     = "443"
-    source_address_prefix      = "*"
-    destination_address_prefix = "*"
-  }
-  
-  security_rule {
-    name                       = "DenyAllInbound"
-    priority                   = 4000
-    direction                  = "Inbound"
-    access                     = "Deny"
-    protocol                   = "*"
-    source_port_range          = "*"
-    destination_port_range     = "*"
-    source_address_prefix      = "*"
-    destination_address_prefix = "*"
-  }
-  
-  tags = azurerm_resource_group.main.tags
-}
+1. **Resource Group**:
+   - Name: `rg-password-manager-${var.environment}`
+   - Location: From `var.location`
+   - Tags: Project=password-manager, Environment=${var.environment}, Component=infrastructure, ManagedBy=terraform, CostCenter=personal
 
-# Public IP
-resource "azurerm_public_ip" "main" {
-  name                = "pip-password-manager"
-  location            = azurerm_resource_group.main.location
-  resource_group_name = azurerm_resource_group.main.name
-  allocation_method   = "Static"
-  sku                 = "Basic"
-  
-  tags = azurerm_resource_group.main.tags
-}
+2. **Virtual Network**:
+   - Name: `vnet-password-manager`
+   - Address space: `10.0.0.0/16`
+   - Tags: Same as resource group
 
-# Network Interface
-resource "azurerm_network_interface" "main" {
-  name                = "nic-password-manager"
-  location            = azurerm_resource_group.main.location
-  resource_group_name = azurerm_resource_group.main.name
-  
-  ip_configuration {
-    name                          = "internal"
-    subnet_id                     = azurerm_subnet.main.id
-    private_ip_address_allocation = "Dynamic"
-    public_ip_address_id          = azurerm_public_ip.main.id
-  }
-  
-  tags = azurerm_resource_group.main.tags
-}
+3. **Subnet**:
+   - Name: `subnet-password-manager`
+   - Address prefixes: `10.0.1.0/24`
 
-# Associate NSG with NIC
-resource "azurerm_network_interface_security_group_association" "main" {
-  network_interface_id      = azurerm_network_interface.main.id
-  network_security_group_id = azurerm_network_security_group.main.id
-}
+4. **Network Security Group**:
+   - Name: `nsg-password-manager`
+   - Security rules:
+     - Allow HTTP (port 80, priority 1000)
+     - Allow HTTPS (port 443, priority 1001)
+     - Deny all other inbound (priority 4000)
+   - Tags: Same as resource group
 
-# Virtual Machine
-resource "azurerm_linux_virtual_machine" "main" {
-  name                = "vm-password-manager"
-  location            = azurerm_resource_group.main.location
-  resource_group_name = azurerm_resource_group.main.name
-  size                = var.vm_size
-  admin_username      = var.admin_username
-  
-  network_interface_ids = [
-    azurerm_network_interface.main.id
-  ]
-  
-  admin_ssh_key {
-    username   = var.admin_username
-    public_key = file(var.ssh_public_key_path)
-  }
-  
-  os_disk {
-    name                 = "osdisk-password-manager"
-    caching              = "ReadWrite"
-    storage_account_type = "Premium_LRS"
-    disk_size_gb         = 64
-  }
-  
-  source_image_reference {
-    publisher = "Canonical"
-    offer     = "0001-com-ubuntu-server-jammy"
-    sku       = "22_04-lts-gen2"
-    version   = "latest"
-  }
-  
-  # Custom data script for initial setup
-  custom_data = base64encode(templatefile("${path.module}/scripts/cloud-init.sh", {
-    admin_username = var.admin_username
-  }))
-  
-  tags = merge(azurerm_resource_group.main.tags, {
-    Component = "vaultwarden"
-    Backup    = "enabled"
-  })
-}
-```
+5. **Public IP Address**:
+   - Name: `pip-password-manager`
+   - Allocation: Static
+   - SKU: Basic
+   - Tags: Same as resource group
 
-**Note**: The `custom_data` field references the cloud-init script. Ensure `scripts/cloud-init.sh` exists before running `terraform plan`.
+6. **Network Interface**:
+   - Name: `nic-password-manager`
+   - IP configuration: Dynamic private IP, associated with public IP
+   - Tags: Same as resource group
+
+7. **NSG Association**: Associate NSG with network interface
+
+8. **Virtual Machine**:
+   - Name: `vm-password-manager`
+   - Size: From `var.vm_size`
+   - Admin username: From `var.admin_username`
+   - SSH key: From `var.ssh_public_key_path`
+   - OS disk: Premium_LRS, 64 GB, ReadWrite caching
+   - Source image: Ubuntu 22.04 LTS (Canonical, `0001-com-ubuntu-server-jammy`, `22_04-lts-gen2`)
+   - Custom data: Base64-encoded cloud-init script (see Cloud-Init Script requirements)
+   - Tags: Merge resource group tags with Component=vaultwarden, Backup=enabled
+
+**Note**: The `custom_data` field references the cloud-init script. Ensure `scripts/cloud-init.sh` exists before running `terraform plan`. Separating vendor-specific resources makes it easier to add support for other cloud providers (AWS, GCP) in the future.
 
 ### Outputs File (`infrastructure/terraform/outputs.tf`)
 
-```hcl
-output "vm_public_ip" {
-  value       = azurerm_public_ip.main.ip_address
-  description = "Public IP address of the VM"
-}
+**Purpose**: Output values for deployment automation
 
-output "vm_ssh_command" {
-  value       = "ssh ${var.admin_username}@${azurerm_public_ip.main.ip_address}"
-  description = "SSH command to connect to the VM"
-}
-```
+**Location**: `infrastructure/terraform/outputs.tf`
+
+**Created During**: Step 1: Terraform Setup (see [plan.md](plan.md))
+
+**Requirements**:
+- **vm_public_ip**: Output the public IP address of the VM
+- **vm_ssh_command**: Output SSH command to connect to the VM (format: `ssh ${var.admin_username}@${public_ip}`)
 
 ### Variables File (`infrastructure/terraform/variables.tf`)
 
-```hcl
-variable "location" {
-  description = "Azure region for resources"
-  type        = string
-  default     = "Central India"
-}
+**Purpose**: Input variables for Terraform configuration
 
-variable "environment" {
-  description = "Environment name (production, staging, development)"
-  type        = string
-  default     = "production"
-}
+**Location**: `infrastructure/terraform/variables.tf`
 
-variable "vm_size" {
-  description = "VM size SKU"
-  type        = string
-  default     = "Standard_B2s"
-}
+**Created During**: Step 1: Terraform Setup (see [plan.md](plan.md))
 
-variable "admin_username" {
-  description = "Admin username for VM"
-  type        = string
-  default     = "azureuser"
-}
+**Requirements**:
+- **location** (string, default: "Central India"): Azure region for resources
+- **environment** (string, default: "production"): Environment name (production, staging, development)
+- **vm_size** (string, default: "Standard_B2s"): VM size SKU
+- **admin_username** (string, default: "azureuser"): Admin username for VM
+- **ssh_public_key_path** (string, default: "~/.ssh/id_rsa.pub"): Path to SSH public key file
+- **domain** (string, required): Domain name for Vaultwarden
 
-variable "ssh_public_key_path" {
-  description = "Path to SSH public key file"
-  type        = string
-  default     = "~/.ssh/id_rsa.pub"
-}
-
-variable "domain" {
-  description = "Domain name for Vaultwarden"
-  type        = string
-}
-```
+**Note**: These Terraform files are created during execution based on these requirements, not stored in documentation.
 
 ## Cloud-Init Script
 
@@ -278,42 +144,54 @@ The `cloud-init.sh` script is a bootstrap automation script that runs automatica
 
 ### Cloud-Init Script (`infrastructure/terraform/scripts/cloud-init.sh`)
 
-```bash
-#!/bin/bash
-# This script runs on first boot via cloud-init
+**Purpose**: Bootstrap automation script that runs automatically on first boot of newly provisioned Azure VM
 
-# Update system
-apt-get update && apt-get upgrade -y
+**Location**: `infrastructure/terraform/scripts/cloud-init.sh`
 
-# Install Docker
-curl -fsSL https://get.docker.com -o get-docker.sh
-sh get-docker.sh
-usermod -aG docker ${admin_username}
+**Created During**: Step 1: Terraform Setup (see [plan.md](plan.md))
 
-# Install Docker Compose
-curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
-chmod +x /usr/local/bin/docker-compose
+**Requirements**:
 
-# Install Rclone
-curl https://rclone.org/install.sh | bash
+The script must perform the following operations in order:
 
-# Install GPG and SQLite CLI
-apt-get install -y gnupg2 sqlite3
+1. **System Updates**: Update package lists and upgrade system packages (`apt-get update && apt-get upgrade -y`)
 
-# Create directory structure
-mkdir -p /opt/vaultwarden/{caddy/{data,config},vaultwarden/data,scripts,backups}
-chown -R ${admin_username}:${admin_username} /opt/vaultwarden
+2. **Install Docker**: 
+   - Download and run official Docker installation script
+   - Add admin user to docker group
 
-# Configure firewall
-ufw default deny incoming
-ufw default allow outgoing
-ufw allow 80/tcp comment 'HTTP for Let's Encrypt'
-ufw allow 443/tcp comment 'HTTPS'
-ufw --force enable
+3. **Install Docker Compose**: 
+   - Download latest Docker Compose binary from GitHub releases
+   - Install to `/usr/local/bin/docker-compose`
+   - Make executable
 
-# Log completion
-echo "Cloud-init completed at $(date)" >> /var/log/cloud-init.log
-```
+4. **Install Rclone**: 
+   - Download and run official Rclone installation script
+
+5. **Install GPG and SQLite CLI**: 
+   - Install `gnupg2` and `sqlite3` packages
+
+6. **Create Directory Structure**: 
+   - Create `/opt/vaultwarden/` with subdirectories: `caddy/{data,config}`, `vaultwarden/data`, `scripts`, `backups`
+   - Set ownership to admin user for `/opt/vaultwarden/`
+
+7. **Set Vaultwarden Data Permissions**: 
+   - Set ownership to `1000:1000` for `/opt/vaultwarden/vaultwarden/data` (for non-root container execution)
+
+8. **Configure Firewall (UFW)**:
+   - Default deny incoming traffic
+   - Default allow outgoing traffic
+   - Allow port 80/tcp (HTTP for Let's Encrypt)
+   - Allow port 443/tcp (HTTPS)
+   - Enable UFW
+
+9. **Log Completion**: 
+   - Log completion timestamp to `/var/log/cloud-init.log`
+
+**Template Variables**:
+- `${admin_username}`: Admin username passed from Terraform variable
+
+**Note**: This script is created during execution based on these requirements, not stored in documentation. The script is base64-encoded and passed to the VM via Terraform's `custom_data` field.
 
 ## Step-by-Step Implementation
 
@@ -326,40 +204,33 @@ echo "Cloud-init completed at $(date)" >> /var/log/cloud-init.log
 
 ### 2. Initialize Terraform
 
-```bash
-cd infrastructure/terraform
-terraform init
-```
+**Instructions**: Navigate to Terraform directory and run `terraform init` to initialize the backend and download providers.
 
 ### 3. Create terraform.tfvars
 
-```hcl
-location     = "Central India"
-environment  = "production"
-vm_size      = "Standard_B2s"
-admin_username = "azureuser"
-ssh_public_key_path = "~/.ssh/id_rsa.pub"
-domain       = "https://your-domain.com"
-```
+**Instructions**: Create `terraform.tfvars` file with your configuration values:
+- `location`: Azure region (e.g., "Central India")
+- `environment`: Environment name (e.g., "production")
+- `vm_size`: VM SKU (e.g., "Standard_B2s")
+- `admin_username`: VM admin username (e.g., "azureuser")
+- `ssh_public_key_path`: Path to SSH public key (e.g., "~/.ssh/id_rsa.pub")
+- `domain`: Domain name for Vaultwarden (e.g., "https://your-domain.com")
+
+**Note**: `terraform.tfvars` should not be committed to Git (add to `.gitignore`).
 
 ### 4. Plan Infrastructure
 
-```bash
-terraform plan -out=tfplan
-```
+**Instructions**: Run `terraform plan -out=tfplan` to review infrastructure changes before applying.
 
 ### 5. Apply Infrastructure
 
-```bash
-terraform apply tfplan
-```
+**Instructions**: Run `terraform apply tfplan` to provision infrastructure. Type `yes` when prompted.
 
 ### 6. Get Outputs
 
-```bash
-terraform output vm_public_ip
-terraform output vm_ssh_command
-```
+**Instructions**: Use `terraform output` commands to get VM public IP and SSH command:
+- `terraform output vm_public_ip`: Get VM public IP address
+- `terraform output vm_ssh_command`: Get SSH command to connect to VM
 
 ## Variable Explanations
 
@@ -376,23 +247,17 @@ terraform output vm_ssh_command
 
 ### Setup Azure Storage for State
 
-1. Create storage account:
-```bash
-az storage account create \
-  --name tfstate<unique-id> \
-  --resource-group terraform-state-rg \
-  --location "Central India" \
-  --sku Standard_LRS
-```
+**Instructions**:
 
-2. Create container:
-```bash
-az storage container create \
-  --name tfstate \
-  --account-name tfstate<unique-id>
-```
+1. **Create Storage Account**: Use Azure CLI to create storage account for Terraform state:
+   - Name: `tfstate<unique-id>` (use unique identifier)
+   - Resource group: `terraform-state-rg`
+   - Location: Azure region (e.g., "Central India")
+   - SKU: Standard_LRS
 
-3. Update backend configuration in `main.tf`
+2. **Create Container**: Create blob container named `tfstate` in the storage account
+
+3. **Update Backend Configuration**: Update `backend "azurerm"` block in `main.tf` with storage account details
 
 ## Best Practices
 

@@ -74,7 +74,7 @@ This specification defines a self-hosted, secure, and maintenance-free personal 
 
 - System can be deployed on a fresh Ubuntu VM in under 30 minutes
 - Automated backups run nightly without manual intervention
-- Container updates are applied automatically within 24 hours of stable release
+- Container updates: Caddy and Watchtower are automatically updated via Watchtower; Vaultwarden uses version pinning with manual updates (security patches within 7 days, critical patches within 24-48 hours)
 - Complete system restore can be performed with a single command
 - Zero unencrypted data transmission over the network
 
@@ -82,71 +82,84 @@ This specification defines a self-hosted, secure, and maintenance-free personal 
 
 ### 2.1 High-Level Architecture
 
-The system follows a three-tier architecture:
+The system follows a three-tier architecture with detailed component interactions. Both the Reverse Proxy Layer and Application Layer run on the same Ubuntu VM host:
 
 ```mermaid
 graph TB
-    subgraph Client["Client Layer"]
+    subgraph ClientLayer["Client Layer"]
         Desktop[Bitwarden Desktop]
         Mobile[Bitwarden Mobile]
         Web[Bitwarden Web]
     end
     
-    subgraph Proxy["Reverse Proxy Layer"]
-        Caddy[Caddy/Nginx<br/>+ Let's Encrypt]
-        SSL[Automatic SSL<br/>Certificate Renewal]
-        Redirect[HTTP → HTTPS<br/>Redirect]
-        RateLimit[Rate Limiting]
-        Caddy --> SSL
-        Caddy --> Redirect
-        Caddy --> RateLimit
+    subgraph UbuntuVM["Ubuntu VM Host<br/>Docker Containers"]
+        subgraph ProxyLayer["Reverse Proxy Layer"]
+            Caddy[Caddy/Nginx<br/>Reverse Proxy]
+            SSL[Automatic SSL<br/>Certificate Renewal]
+            Redirect[HTTP → HTTPS<br/>Redirect]
+            RateLimit[Rate Limiting]
+            SecurityHeaders[Security Headers<br/>HSTS, X-Frame-Options]
+            Caddy --> SSL
+            Caddy --> Redirect
+            Caddy --> RateLimit
+            Caddy --> SecurityHeaders
+        end
+        
+        subgraph AppLayer["Application Layer"]
+            BackupScript[Backup Script<br/>Cron Job - Nightly]
+            BackupEnc[Encrypted Backup<br/>.tar.gz.gpg<br/>Temporary]
+            BackupScript -->|Encrypt with GPG| BackupEnc
+            BackupScript -->|Backup & Encrypt| SQLite
+            BackupScript -->|Backup & Encrypt| Attachments
+
+            Vaultwarden[Vaultwarden Container<br/>Rust-based Bitwarden Server]
+            SQLite[(SQLite Database<br/>db.sqlite3)]
+            Attachments[Attachment Storage<br/>Encrypted Files]
+            Encryption[Zero-Knowledge<br/>Client-Side Encryption]
+            Vaultwarden --> SQLite
+            Vaultwarden --> Attachments
+            Vaultwarden --> Encryption
+            
+            Watchtower[Watchtower Container<br/>Auto-Update Monitor]
+            Watchtower -.->|Monitor & Update<br/>Caddy & Watchtower| Caddy
+            
+        end
     end
     
-    subgraph App["Application Layer"]
-        Vaultwarden[Vaultwarden Container<br/>Rust-based Bitwarden Server]
-        SQLite[(SQLite Database)]
-        Attachments[Attachment Storage]
-        Encryption[Zero-Knowledge<br/>Encryption]
-        Vaultwarden --> SQLite
-        Vaultwarden --> Attachments
-        Vaultwarden --> Encryption
+    subgraph ExternalServices["External Services"]
+        GoogleDrive[Google Drive<br/>Encrypted Backup Storage]
+        LetsEncrypt[Let's Encrypt<br/>SSL Certificates]
     end
     
     Desktop -->|HTTPS<br/>TLS 1.3| Caddy
     Mobile -->|HTTPS<br/>TLS 1.3| Caddy
     Web -->|HTTPS<br/>TLS 1.3| Caddy
-    Caddy -->|Internal Network| Vaultwarden
+    Caddy -->|Internal Network<br/>Port 80| Vaultwarden
+    Caddy -.->|Auto-renew| LetsEncrypt
+    
+    BackupEnc -->|Upload via Rclone| GoogleDrive
+    
+    style UbuntuVM fill:#4a90a4,stroke:#2e7d8e,stroke-width:3px,color:#fff
+    style ExternalServices fill:#9b59b6,stroke:#7d3c98,stroke-width:2px,color:#fff
 ```
+
+**Architecture Layers:**
+
+1. **Client Layer**: Bitwarden clients (Desktop, Mobile, Web) connect via HTTPS
+2. **Reverse Proxy Layer**: Caddy/Nginx handles SSL termination, automatic certificate renewal, HTTP→HTTPS redirect, rate limiting, and security headers
+3. **Application Layer**: Vaultwarden container with SQLite database and attachment storage, plus supporting services (Watchtower for updates, Backup Script for data protection)
+4. **External Services**: Let's Encrypt for SSL certificates, Google Drive for encrypted backup storage
 
 ### 2.2 Component Architecture
 
-```mermaid
-graph TB
-    Client[Bitwarden Client] -->|HTTPS Only| ReverseProxy[Reverse Proxy<br/>Caddy/Nginx]
-    ReverseProxy -->|Internal Network| Vaultwarden[Vaultwarden Container]
-    Vaultwarden -->|Read/Write| SQLite[(SQLite Database)]
-    Vaultwarden -->|Store| Attachments[Attachment Storage]
-    
-    Watchtower[Watchtower Container] -->|Monitor & Update| Vaultwarden
-    BackupScript[Backup Script<br/>Cron Job] -->|Encrypt| BackupEnc[Encrypted Backup]
-    BackupEnc -->|Upload via Rclone| GoogleDrive[Google Drive]
-    
-    subgraph Host[Ubuntu VM Host]
-        ReverseProxy
-        Vaultwarden
-        Watchtower
-        BackupScript
-        SQLite
-        Attachments
-    end
-    
-    subgraph External[External Services]
-        GoogleDrive
-        LetsEncrypt[Let's Encrypt<br/>SSL Certificates]
-    end
-    
-    ReverseProxy -.->|Auto-renew| LetsEncrypt
-```
+The component architecture details are integrated into the High-Level Architecture diagram above. Key components include:
+
+- **Vaultwarden Container**: Core application server handling authentication and encrypted data storage
+- **SQLite Database**: Embedded database storing encrypted vault data
+- **Attachment Storage**: Secure file storage for user attachments
+- **Watchtower**: Automated container update service (updates Caddy and Watchtower only; Vaultwarden uses version pinning)
+- **Backup Script**: Automated nightly backup with GPG encryption and Google Drive upload
+- **Reverse Proxy (Caddy)**: HTTPS termination, SSL automation, and security features
 
 ### 2.3 Data Flow
 
@@ -452,7 +465,10 @@ For detailed cost breakdown, optimization strategies, and monitoring setup, see 
 
 After deployment, the following must be configured:
 
-- **Admin Account**: First user account must be created via admin panel
+- **Admin Account**: First user account must be created via web UI (signups are enabled by default for initial setup)
+- **Signup Restriction**: After creating the initial master account, public signups must be disabled by:
+  1. Setting `SIGNUPS_ALLOWED=false` in `.env` file
+  2. Restarting Vaultwarden container to apply the change
 - **Backup Automation**: Nightly backup cron job must be configured
 - **Health Monitoring**: Optional health check monitoring must be available
 
@@ -598,12 +614,15 @@ For detailed information on attachments architecture, encryption, size limits, a
 #### 5.1.2 Backup Process Requirements
 
 The backup process must:
-- Create SQLite database backup using `.backup` command
+- **Create SQLite database backup using `.backup` command executed inside the Vaultwarden container**:
+  - Backup must run via `docker exec` inside the container to avoid permission clashes and database locks
+  - The backup command runs with the container's non-root user (UID 1000) to ensure proper file permissions
+  - Example: `docker exec vaultwarden sqlite3 /data/db.sqlite3 ".backup /data/db_backup.sqlite3"`
 - Archive attachments directory
 - Create backup manifest with metadata
 - Encrypt backup using GPG (AES-256)
 - Upload encrypted backup to Google Drive via Rclone
-- Clean up local temporary files after successful upload
+- Clean up local temporary files after successful upload (including temporary backup file inside container)
 - Apply retention policy to remove old backups
 
 For backup script implementation, see [plan.md](plan.md).
@@ -761,40 +780,20 @@ docker-compose logs -f vaultwarden  # Monitor for errors
 
 #### 6.2.3 Automated Health Checks
 
-Create a simple health check script (`scripts/health-check.sh`):
+The health check script must be generated from `infrastructure/templates/health-check.sh.template` during deployment. The script must perform the following operations:
 
-```bash
-#!/bin/bash
+**Health Check Script Requirements**:
+- **Service Availability Check**: Verify the Vaultwarden service responds with HTTP 200 status code
+- **Container Status Check**: Verify the Vaultwarden container is running
+- **Alerting**: Send email alert if `ALERT_EMAIL` environment variable is set and health check fails
+- **Logging**: Log health check results with timestamps
+- **Exit Codes**: Exit with 0 on success, 1 on failure
 
-DOMAIN="${DOMAIN:-https://your-domain.com}"
-ALERT_EMAIL="${ALERT_EMAIL}"
+**Cron Configuration**:
+- Health check must run every 15 minutes via crontab
+- Log output to `/var/log/vaultwarden-health.log`
 
-# Check if service is responding
-HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" "${DOMAIN}")
-
-if [ "${HTTP_CODE}" != "200" ]; then
-    echo "[$(date)] Health check failed: HTTP ${HTTP_CODE}"
-    if [ -n "${ALERT_EMAIL}" ]; then
-        echo "Vaultwarden health check failed" | mail -s "Alert: Vaultwarden Down" "${ALERT_EMAIL}"
-    fi
-    exit 1
-fi
-
-# Check container status
-if ! docker ps | grep -q vaultwarden; then
-    echo "[$(date)] Health check failed: Container not running"
-    exit 1
-fi
-
-echo "[$(date)] Health check passed"
-exit 0
-```
-
-Add to crontab (every 15 minutes):
-
-```bash
-*/15 * * * * /opt/vaultwarden/scripts/health-check.sh >> /var/log/vaultwarden-health.log 2>&1
-```
+For implementation details, see [plan.md](plan.md) and the health check script template requirements.
 
 ### 6.3 System Maintenance
 
@@ -817,29 +816,17 @@ sudo reboot  # If kernel updated
 
 #### 6.3.2 Disk Space Management
 
-**Monitor Disk Usage:**
+**Monitoring Requirements**:
+- Disk usage must be monitored regularly using `df -h` and `docker system df`
+- Disk space alerts should be configured when usage exceeds 80%
 
-```bash
-# Check disk usage
-df -h
+**Operational Cleanup Requirements**:
+- Docker system pruning must be handled operationally to remove unused images, containers, and volumes
+- Log cleanup must be handled operationally to remove old log files (recommended: keep last 7-30 days)
+- Cleanup operations should be performed manually or via scheduled maintenance tasks
+- Automated cleanup scripts are not provided; operators must implement cleanup procedures based on their monitoring needs
 
-# Check Docker disk usage
-docker system df
-
-# Clean up Docker (removes unused images, containers, volumes)
-docker system prune -a --volumes
-```
-
-**Automated Cleanup Script:**
-
-```bash
-#!/bin/bash
-# Clean up old Docker images and containers
-docker system prune -f --volumes
-
-# Clean up old logs (keep last 7 days)
-find /var/log -name "*.log" -mtime +7 -delete
-```
+For detailed monitoring and cleanup procedures, see [plan.md](plan.md) and operational documentation.
 
 #### 6.3.3 Database Maintenance
 

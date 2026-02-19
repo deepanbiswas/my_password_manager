@@ -6,226 +6,72 @@ CI/CD pipelines automate the deployment process, enabling one-command deployment
 
 ## GitHub Actions Workflow
 
-### Complete Workflow (`.github/workflows/deploy.yml`)
+### Workflow Requirements (`.github/workflows/deploy.yml`)
 
-```yaml
-name: Deploy Password Manager
+**Purpose**: Automated deployment workflow for infrastructure and application configuration
 
-on:
-  push:
-    branches:
-      - main
-    paths:
-      - 'infrastructure/**'
-      - 'docker-compose.yml'
-      - '.github/workflows/deploy.yml'
-  workflow_dispatch:
-    inputs:
-      environment:
-        description: 'Deployment environment'
-        required: true
-        default: 'production'
-        type: choice
-        options:
-          - production
-          - staging
+**Location**: `.github/workflows/deploy.yml`
 
-env:
-  AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-  AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
-  AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
-  AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+**Created During**: CI/CD Pipeline Setup (see [plan.md](plan.md) Step 2)
 
-jobs:
-  terraform-plan:
-    name: Terraform Plan
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: ./infrastructure/terraform
-    
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-      
-      - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v3
-        with:
-          terraform_version: 1.5.0
-      
-      - name: Terraform Init
-        run: terraform init
-      
-      - name: Terraform Validate
-        run: terraform validate
-      
-      - name: Terraform Plan
-        run: terraform plan -out=tfplan
-        env:
-          TF_VAR_domain: ${{ secrets.DOMAIN }}
-      
-      - name: Upload Terraform Plan
-        uses: actions/upload-artifact@v3
-        with:
-          name: terraform-plan
-          path: infrastructure/terraform/tfplan
+**Workflow Structure Requirements**:
 
-  terraform-apply:
-    name: Terraform Apply
-    needs: terraform-plan
-    runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main'
-    defaults:
-      run:
-        working-directory: ./infrastructure/terraform
-    
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-      
-      - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v3
-        with:
-          terraform_version: 1.5.0
-      
-      - name: Configure Azure credentials
-        uses: azure/login@v1
-        with:
-          creds: ${{ secrets.AZURE_CREDENTIALS }}
-      
-      - name: Terraform Init
-        run: terraform init
-      
-      - name: Download Terraform Plan
-        uses: actions/download-artifact@v3
-        with:
-          name: terraform-plan
-      
-      - name: Terraform Apply
-        run: terraform apply -auto-approve tfplan
-        env:
-          TF_VAR_domain: ${{ secrets.DOMAIN }}
-      
-      - name: Get VM Public IP
-        id: vm-ip
-        run: |
-          VM_IP=$(terraform output -raw vm_public_ip)
-          echo "vm_ip=$VM_IP" >> $GITHUB_OUTPUT
-      
-      - name: Setup SSH
-        uses: webfactory/ssh-agent@v0.7.0
-        with:
-          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
-      
-      - name: Deploy Application Configuration
-        run: |
-          ssh -o StrictHostKeyChecking=no ${{ secrets.VM_USERNAME }}@${{ steps.vm-ip.outputs.vm_ip }} << 'EOF'
-            set -e
-            cd /opt/vaultwarden
-            
-            # Clone or pull repository (contains templates)
-            if [ -d .git ]; then
-              git pull origin main
-            else
-              git clone https://github.com/${{ github.repository }}.git .
-            fi
-            
-            # Verify templates directory exists
-            if [ ! -d "infrastructure/templates" ]; then
-              echo "Error: Templates directory not found. Ensure templates are committed to repository."
-              exit 1
-            fi
-            
-            # Generate secrets if .env doesn't exist
-            if [ ! -f .env ]; then
-              ADMIN_TOKEN=$(openssl rand -base64 48)
-              BACKUP_ENCRYPTION_KEY=$(openssl rand -base64 32)
-              
-              # Generate .env from template
-              sed -e "s|{{ADMIN_TOKEN}}|${ADMIN_TOKEN}|g" \
-                  -e "s|{{DOMAIN}}|${{ secrets.DOMAIN }}|g" \
-                  -e "s|{{BACKUP_ENCRYPTION_KEY}}|${BACKUP_ENCRYPTION_KEY}|g" \
-                  infrastructure/templates/.env.template > .env
-              chmod 600 .env
-            fi
-            
-            # Source .env for variable substitution
-            set -a
-            source .env
-            set +a
-            
-            # Generate docker-compose.yml from template if it doesn't exist
-            if [ ! -f docker-compose.yml ]; then
-              sed -e "s|{{DOMAIN}}|${DOMAIN}|g" \
-                  -e "s|{{ADMIN_TOKEN}}|${ADMIN_TOKEN}|g" \
-                  infrastructure/templates/docker-compose.yml.template > docker-compose.yml
-            fi
-            
-            # Generate Caddyfile from template if it doesn't exist
-            mkdir -p caddy
-            DOMAIN_NAME=$(echo ${DOMAIN} | sed 's|https\?://||')
-            if [ ! -f caddy/Caddyfile ]; then
-              sed "s|{{DOMAIN_NAME}}|${DOMAIN_NAME}|g" \
-                  infrastructure/templates/Caddyfile.template > caddy/Caddyfile
-            fi
-            
-            # Deploy backup script from template if it doesn't exist
-            if [ ! -f scripts/backup.sh ]; then
-              mkdir -p scripts
-              cp infrastructure/templates/backup.sh.template scripts/backup.sh
-              chmod +x scripts/backup.sh
-            fi
-            
-            # Deploy health check script from template if it doesn't exist
-            if [ ! -f scripts/health-check.sh ]; then
-              sed "s|{{DOMAIN}}|${DOMAIN}|g" \
-                  infrastructure/templates/health-check.sh.template > scripts/health-check.sh
-              chmod +x scripts/health-check.sh
-            fi
-            
-            # Setup crontab entries if not already present
-            (crontab -l 2>/dev/null | grep -v "backup.sh" | grep -v "health-check.sh"; \
-             echo "0 2 * * * /opt/vaultwarden/scripts/backup.sh >> /var/log/vaultwarden-backup.log 2>&1"; \
-             echo "*/15 * * * * /opt/vaultwarden/scripts/health-check.sh >> /var/log/vaultwarden-health.log 2>&1") | crontab -
-            
-            # Pull latest images and start services
-            docker-compose pull
-            docker-compose up -d
-            
-            # Verify containers are running
-            sleep 5
-            docker-compose ps
-          EOF
-      
-      - name: Verify Deployment
-        run: |
-          VM_IP=$(terraform output -raw vm_public_ip)
-          sleep 30  # Wait for services to start
-          
-          # Health check
-          HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" https://${{ secrets.DOMAIN }})
-          if [ "$HTTP_CODE" != "200" ]; then
-            echo "Health check failed: HTTP $HTTP_CODE"
-            exit 1
-          fi
-          
-          # Verify containers are running
-          ssh -o StrictHostKeyChecking=no ${{ secrets.VM_USERNAME }}@$VM_IP "docker-compose -f /opt/vaultwarden/docker-compose.yml ps | grep -q 'Up' || exit 1"
-          
-          echo "✅ Deployment verified successfully"
-      
-      - name: Comment PR
-        if: github.event_name == 'pull_request'
-        uses: actions/github-script@v6
-        with:
-          script: |
-            github.rest.issues.createComment({
-              issue_number: context.issue.number,
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              body: '✅ Deployment completed successfully!'
-            })
-```
+1. **Workflow Triggers**:
+   - Trigger on push to `main` branch when paths change: `infrastructure/**`, `docker-compose.yml`, `.github/workflows/deploy.yml`
+   - Manual trigger (`workflow_dispatch`) with environment selection (production/staging)
+
+2. **Environment Variables**:
+   - Azure credentials: `AZURE_SUBSCRIPTION_ID`, `AZURE_CLIENT_ID`, `AZURE_CLIENT_SECRET`, `AZURE_TENANT_ID`
+   - Loaded from GitHub Secrets
+
+3. **Jobs**:
+   - **terraform-plan**: Plan infrastructure changes
+     - Checkout code
+     - Setup Terraform (version 1.5.0)
+     - Run `terraform init`, `terraform validate`, `terraform plan`
+     - Upload plan artifact
+   - **terraform-apply**: Apply infrastructure (only on main branch)
+     - Checkout code
+     - Setup Terraform
+     - Configure Azure credentials
+     - Download plan artifact
+     - Run `terraform apply`
+     - Get VM public IP from Terraform output
+     - Setup SSH agent with private key
+     - **Deploy Application Configuration** (see requirements below)
+     - **Verify Deployment** (see requirements below)
+     - Comment on PR if triggered from pull request
+
+**Deploy Application Configuration Step Requirements**:
+
+This step must SSH into the VM and execute the following operations:
+
+1. **Repository Setup**: Clone or pull repository (contains templates from `infrastructure/templates/`)
+2. **Template Verification**: Verify `infrastructure/templates/` directory exists
+3. **Environment Variables Generation**:
+   - Generate `.env` from template if it doesn't exist
+   - Generate `ADMIN_TOKEN` using `openssl rand -base64 48`
+   - Generate `BACKUP_ENCRYPTION_KEY` using `openssl rand -base64 32`
+   - Replace template variables: `{{ADMIN_TOKEN}}`, `{{DOMAIN}}`, `{{BACKUP_ENCRYPTION_KEY}}`
+   - Set `.env` file permissions to 600
+4. **Docker Compose Generation**: Generate `docker-compose.yml` from template if it doesn't exist (replace `{{DOMAIN}}`, `{{ADMIN_TOKEN}}`)
+5. **Caddyfile Generation**: Generate `caddy/Caddyfile` from template if it doesn't exist (replace `{{DOMAIN_NAME}}`)
+6. **Backup Script Deployment**: Copy `backup.sh.template` to `scripts/backup.sh` and make executable
+7. **Health Check Script Deployment**: Generate `scripts/health-check.sh` from template (replace `{{DOMAIN}}`) and make executable
+8. **Crontab Configuration**: Add crontab entries for nightly backup (2 AM) and health checks (every 15 minutes)
+9. **Service Deployment**: Run `docker-compose pull` and `docker-compose up -d`
+10. **Container Verification**: Verify all containers are running
+
+**Verify Deployment Step Requirements**:
+
+This step must:
+1. Get VM public IP from Terraform output
+2. Wait 30 seconds for services to start
+3. Perform health check: Test HTTPS endpoint returns HTTP 200 status code
+4. Verify containers: Check all containers are running via SSH
+5. Exit with error if health check or container verification fails
+
+**Note**: This workflow file is created during execution based on these requirements, not stored in documentation.
 
 ### Required GitHub Secrets
 
@@ -249,70 +95,37 @@ Configure these secrets in GitHub repository settings:
 
 ## Azure DevOps Pipeline
 
-### Complete Pipeline (`azure-pipelines.yml`)
+### Pipeline Requirements (`azure-pipelines.yml`)
 
-```yaml
-trigger:
-  branches:
-    include:
-      - main
+**Purpose**: Alternative CI/CD pipeline using Azure DevOps
 
-pool:
-  vmImage: 'ubuntu-latest'
+**Location**: `azure-pipelines.yml`
 
-variables:
-  - group: password-manager-variables
+**Created During**: CI/CD Pipeline Setup (see [plan.md](plan.md) Step 2)
 
-stages:
-  - stage: Infrastructure
-    displayName: 'Deploy Infrastructure'
-    jobs:
-      - job: Terraform
-        displayName: 'Terraform Apply'
-        steps:
-          - task: TerraformInstaller@0
-            displayName: 'Install Terraform'
-            inputs:
-              terraformVersion: '1.5.0'
-          
-          - task: TerraformTaskV3@3
-            displayName: 'Terraform Init & Apply'
-            inputs:
-              provider: 'azurerm'
-              command: 'apply'
-              workingDirectory: '$(System.DefaultWorkingDirectory)/infrastructure/terraform'
-              backendServiceArm: 'Azure-Service-Connection'
-              backendAzureRmResourceGroupName: 'terraform-state-rg'
-              backendAzureRmStorageAccountName: 'tfstate$(unique-id)'
-              backendAzureRmContainerName: 'tfstate'
-              backendAzureRmKey: 'password-manager.terraform.tfstate'
-  
-  - stage: Application
-    displayName: 'Deploy Application'
-    dependsOn: Infrastructure
-    jobs:
-      - job: Deploy
-        displayName: 'Deploy Vaultwarden'
-        steps:
-          - task: SSH@0
-            displayName: 'Deploy via SSH'
-            inputs:
-              sshEndpoint: 'VM-SSH-Connection'
-              runOptions: 'commands'
-              commands: |
-                cd /opt/vaultwarden
-                git pull origin main
-                docker-compose pull
-                docker-compose up -d
-          
-          - task: PowerShell@2
-            displayName: 'Health Check'
-            inputs:
-              targetType: 'inline'
-              script: |
-                $response = Invoke-WebRequest -Uri "https://$(domain)" -UseBasicParsing
-                if ($response.StatusCode -ne 200) { exit 1 }
-```
+**Pipeline Structure Requirements**:
+
+1. **Triggers**: Trigger on push to `main` branch
+2. **Pool**: Use `ubuntu-latest` VM image
+3. **Variables**: Load from variable group `password-manager-variables`
+
+4. **Stages**:
+   - **Infrastructure Stage**: Deploy infrastructure with Terraform
+     - Install Terraform (version 1.5.0)
+     - Run Terraform Init & Apply
+     - Configure backend: Azure Storage for remote state
+     - Working directory: `infrastructure/terraform`
+   - **Application Stage**: Deploy application (depends on Infrastructure stage)
+     - **Deploy via SSH**: Connect to VM and execute deployment commands
+       - Navigate to `/opt/vaultwarden`
+       - Pull latest code from repository
+       - Pull latest Docker images
+       - Start services with `docker-compose up -d`
+     - **Health Check**: Verify deployment
+       - Test HTTPS endpoint returns HTTP 200 status code
+       - Exit with error if health check fails
+
+**Note**: This pipeline file is created during execution based on these requirements, not stored in documentation.
 
 ## Deployment Automation Benefits
 
@@ -331,26 +144,16 @@ stages:
 
 ### Environment-Specific Deployments
 
-```yaml
-# Deploy to staging
-terraform apply -var="environment=staging"
-
-# Deploy to production
-terraform apply -var="environment=production"
-```
+**Instructions**: Configure Terraform variables for different environments:
+- Staging: Use `terraform apply -var="environment=staging"`
+- Production: Use `terraform apply -var="environment=production"`
 
 ### Multi-Cloud Deployment
 
-```bash
-# Deploy to Azure
-terraform apply -var="provider=azure"
-
-# Deploy to AWS (same code, different provider)
-terraform apply -var="provider=aws"
-
-# Deploy to local machine (Docker only)
-docker-compose up -d
-```
+**Instructions**: Use Terraform with different providers:
+- Azure: Use `terraform apply -var="provider=azure"` (default)
+- AWS: Use `terraform apply -var="provider=aws"` (requires AWS provider configuration)
+- Local: Use `docker-compose up -d` for local testing (no Terraform needed)
 
 ## Pipeline Best Practices
 
