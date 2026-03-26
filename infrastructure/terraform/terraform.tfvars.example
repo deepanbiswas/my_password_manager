@@ -1,0 +1,11 @@
+# Copy this file to terraform.tfvars (gitignored) and set real values.
+# Run Terraform from infrastructure/terraform: terraform init && terraform plan
+
+location              = "Central India"
+environment           = "production"
+vm_size               = "Standard_B2s"
+admin_username        = "azureuser"
+ssh_public_key_path   = "~/.ssh/id_rsa.pub"
+
+# Hostname or full URL (e.g. vault.example.com or https://vault.example.com)
+domain = "https://your-domain.com"

@@ -1,0 +1,82 @@
+# TDI static quality checks (Terraform + shell).
+#
+# Triggers on pull_request and push when relevant paths change. This includes
+# PRs from feature branches such as feature/tdi-iteration-* into main — you do
+# not need to push to main for checks to run on a PR.
+#
+# Live integration (verify.sh over SSH to Azure) is a local or optional
+# workflow_dispatch step; merge criteria remain CI green + verify.sh success.
+
+name: tdi-quality
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "infrastructure/**"
+      - "iterations/**"
+      - ".github/workflows/tdi-quality.yml"
+  push:
+    branches:
+      - main
+    paths:
+      - "infrastructure/**"
+      - "iterations/**"
+      - ".github/workflows/tdi-quality.yml"
+
+jobs:
+  tdi-quality:
+    name: Terraform and shell checks
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.5.0"
+
+      - name: Terraform fmt, init (no backend), validate
+        run: |
+          set -euo pipefail
+          if [ ! -d infrastructure/terraform ] || ! compgen -G "infrastructure/terraform/*.tf" > /dev/null; then
+            echo "::notice::No Terraform files under infrastructure/terraform yet; skipping Terraform checks."
+            exit 0
+          fi
+          cd infrastructure/terraform
+          terraform fmt -check -recursive
+          mkdir -p .ci-terraform
+          ssh-keygen -t ed25519 -f .ci-terraform/ci -N "" -q
+          printf 'domain = "https://ci.validate.invalid"\nssh_public_key_path = "%s/ci.pub"\n' "$(pwd)/.ci-terraform" > terraform.tfvars.ci
+          terraform init -backend=false -input=false
+          terraform validate -var-file=terraform.tfvars.ci
+
+      - name: Shellcheck
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y shellcheck
+          shopt -s nullglob
+          files=()
+          for d in iterations infrastructure/terraform/scripts; do
+            if [ -d "$d" ]; then
+              while IFS= read -r -d '' f; do
+                files+=("$f")
+              done < <(find "$d" -type f -name '*.sh' -print0 2>/dev/null || true)
+            fi
+          done
+          if [ "${#files[@]}" -eq 0 ]; then
+            echo "::notice::No shell scripts under iterations/ or infrastructure/terraform/scripts; skipping shellcheck."
+            exit 0
+          fi
+          shellcheck "${files[@]}"
+
+      - name: Validate workflow YAML syntax
+        run: |
+          set -euo pipefail
+          ruby -ryaml -e 'Dir[".github/workflows/*.yml"].each { |f| YAML.load_file(f); puts "OK #{f}" }'

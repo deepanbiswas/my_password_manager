@@ -23,6 +23,7 @@ This repository contains the complete technical specification for a self-hosted 
 
 - **[spec.md](spec.md)** - Complete technical specification (essential content)
 - **[plan.md](plan.md)** - Deployment execution checklist (quick reference)
+- **[auto_deploy_iterations.md](auto_deploy_iterations.md#git-workflow-and-branching-github)** - TDI automated deployment iterations, Git branch-per-iteration workflow, and merge criteria
 - **[.env.example](.env.example)** - Configuration template with all variables
 
 ### Detailed Guides
@@ -80,12 +81,20 @@ This specification is provided as-is for personal use.
 ```
 my_password_manager/
 ├── .cursorrules          # AI assistant instructions
+├── .cursor/rules/        # TDI review rules (e.g. tdi-infra-review.mdc)
+├── AGENTS.md             # How review + CI quality gates work
 ├── .env.example          # Configuration template
 ├── .gitignore
 ├── plan.md               # Deployment execution checklist
 ├── README.md             # This file
 ├── spec.md               # Technical specification
+├── auto_deploy_iterations.md  # TDI iterations + Git branching
 ├── scratchpad.md         # Personal notes (gitignored)
+├── infrastructure/       # Terraform + deployment templates (see docs/terraform-guide.md)
+│   ├── terraform/
+│   └── templates/
+├── iterations/           # TDI verify.sh / rollback.sh per iteration
+├── .github/workflows/    # CI (e.g. tdi-quality.yml)
 └── docs/                 # Detailed documentation
     ├── README.md
     ├── reverse-proxy-comparison.md

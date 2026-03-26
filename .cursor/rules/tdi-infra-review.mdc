@@ -1,0 +1,15 @@
+---
+description: TDI infrastructure review — align changes with spec, plan, and security before finishing
+globs: infrastructure/**,iterations/**,.github/workflows/**
+alwaysApply: false
+---
+
+# TDI code review (infrastructure & iterations)
+
+When editing matched files, before declaring work complete:
+
+1. **Spec alignment** ([spec.md](spec.md)): zero-knowledge, HTTPS-only intent, ports 80/443 only inbound, Vaultwarden version pinning vs Watchtower for Caddy only, backups via `docker exec` for SQLite, `1000:1000` for vault data where required.
+2. **Plan alignment** ([plan.md](plan.md), [auto_deploy_iterations.md](auto_deploy_iterations.md)): templates and scripts match template sections; no secrets committed (use `.env`, `terraform.tfvars` gitignored).
+3. **Terraform**: `azurerm` constraints, tagging, NSG rules, no credentials in HCL; prefer `Standard` public IP if `Basic` fails on apply.
+4. **Shell**: `set -euo pipefail` where appropriate; quote variables; SSH use `StrictHostKeyChecking` policy documented in scripts.
+5. **Output**: Give a short review — **blocking issues** (must fix), **nits** (optional), then summary.
