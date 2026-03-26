@@ -10,9 +10,9 @@ This document helps you comply with **[plan.md](../plan.md) → Automated Deploy
 
 **Comply:** You have an active Azure subscription you can deploy to. The **₹4,200/month** figure is a **budget assumption** from cost docs—not something you enable in Azure.
 
-- [ ] Sign in to [Azure Portal](https://portal.azure.com) and confirm at least one **Subscription** (Pay-As-You-Go, credits, MSDN, etc.).
-- [ ] Confirm you can create resource groups and VMs (e.g. **Owner** or **Contributor** on the subscription or resource group).
-- [ ] Optional: set a **budget / cost alert** in Azure Cost Management so spend stays within your target (see [cost-analysis.md](cost-analysis.md)).
+- [X] Sign in to [Azure Portal](https://portal.azure.com) and confirm at least one **Subscription** (Pay-As-You-Go, credits, MSDN, etc.).
+- [X] Confirm you can create resource groups and VMs (e.g. **Owner** or **Contributor** on the subscription or resource group).
+- [X ] Optional: set a **budget / cost alert** in Azure Cost Management so spend stays within your target (see [cost-analysis.md](cost-analysis.md)).
 
 **Verify (after [Azure CLI](#5-azure-cli-installed-and-configured) is installed):**
 
@@ -26,6 +26,7 @@ az account show
 ---
 
 ## 2. Domain name registered and DNS access available
+*NOTE: Using Azure's FQDN for now*
 
 **Comply:** You can edit DNS for a hostname that will point to the Vaultwarden VM.
 
@@ -47,10 +48,10 @@ nslookup vault.yourdomain.com
 
 **Comply:** A Git host and automation for this repo (this project uses **GitHub Actions** for workflows under `.github/workflows/`).
 
-- [ ] GitHub (or Azure DevOps) account created.
-- [ ] Repository contains this project; remote configured (`git remote -v`).
-- [ ] **Actions** enabled: repo **Settings → Actions → General** (allow Actions).
-- [ ] For future deploy pipelines: plan **repository secrets** per [plan.md](../plan.md) Step 2 and [cicd-pipelines.md](cicd-pipelines.md) (Azure service principal, SSH private key, `DOMAIN`, etc.).
+- [X] GitHub (or Azure DevOps) account created.
+- [X] Repository contains this project; remote configured (`git remote -v`).
+- [X] **Actions** enabled: repo **Settings → Actions → General** (allow Actions).
+- [X] For future deploy pipelines: plan **repository secrets** per [plan.md](../plan.md) Step 2 and [cicd-pipelines.md](cicd-pipelines.md) (Azure service principal, SSH private key, `DOMAIN`, etc.).
 
 **Verify:**
 
@@ -65,7 +66,7 @@ git remote -v
 
 **Comply:** `terraform version` shows **v1.5.0 or newer** (matches `required_version` in `infrastructure/terraform/main.tf`).
 
-- [ ] Install from [HashiCorp Terraform install](https://developer.hashicorp.com/terraform/install).
+- [X] Install from [HashiCorp Terraform install](https://developer.hashicorp.com/terraform/install).
 
 **macOS (Homebrew) example:**
 
@@ -86,7 +87,7 @@ terraform version
 
 **Comply:** `az` works and targets the subscription you use for Terraform.
 
-- [ ] Install [Azure CLI](https://learn.microsoft.com/cli/azure/install-azure-cli).
+- [X] Install [Azure CLI](https://learn.microsoft.com/cli/azure/install-azure-cli).
 
 **macOS (Homebrew) example:**
 
@@ -94,8 +95,8 @@ terraform version
 brew install azure-cli
 ```
 
-- [ ] Sign in: `az login`
-- [ ] Select subscription: `az account set --subscription "<id-or-name>"`
+- [X] Sign in: `az login`
+- [X] Select subscription: `az account set --subscription "<id-or-name>"`
 
 **Verify:**
 
@@ -112,16 +113,16 @@ az group list -o table
 
 **Comply:** A public key is referenced by `ssh_public_key_path` in `infrastructure/terraform/terraform.tfvars` (copy from [terraform.tfvars.example](../infrastructure/terraform/terraform.tfvars.example)).
 
-- [ ] Generate a key (ed25519 recommended):
+- [X] Generate a key (RSA):
 
 ```bash
-ssh-keygen -t ed25519 -f ~/.ssh/id_ed25519 -C "vaultwarden-vm"
+ssh-keygen -t rsa -b 4096 -f ~/.ssh/id_rsa_vaultwarden -C "vaultwarden-vm"
 ```
 
-- [ ] Copy `terraform.tfvars.example` to `terraform.tfvars` (gitignored) and set:
+- [X] Copy `terraform.tfvars.example` to `terraform.tfvars` (gitignored) and set:
 
 ```hcl
-ssh_public_key_path = "~/.ssh/id_ed25519.pub"
+ssh_public_key_path = "~/.ssh/id_rsa_vaultwarden.pub"
 ```
 
 Use `pathexpand`-friendly paths; Terraform resolves `~` via `pathexpand` in `azure.tf`.
@@ -131,7 +132,7 @@ Use `pathexpand`-friendly paths; Terraform resolves `~` via `pathexpand` in `azu
 **Verify:**
 
 ```bash
-ssh-keygen -lf ~/.ssh/id_ed25519.pub
+ssh-keygen -lf ~/.ssh/id_rsa_vaultwarden.pub
 ```
 
 ---

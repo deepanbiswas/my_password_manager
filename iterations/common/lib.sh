@@ -111,7 +111,8 @@ load_vm_config() {
 
 ssh_vm() {
   local cmd="$1"
-  ssh -o BatchMode=yes -o ConnectTimeout=15 -o StrictHostKeyChecking=accept-new \
+  ssh -i ~/.ssh/id_rsa_vaultwarden \
+    -o BatchMode=yes -o ConnectTimeout=15 -o StrictHostKeyChecking=accept-new \
     "${ADMIN_USER}@${PUBLIC_IP}" "bash -lc $(printf '%q' "$cmd")"
 }
 

@@ -3,6 +3,11 @@ output "vm_public_ip" {
   value       = azurerm_public_ip.main.ip_address
 }
 
+output "vm_fqdn" {
+  description = "Azure-generated FQDN for the public IP (<dns_label>.<region>.cloudapp.azure.com)"
+  value       = azurerm_public_ip.main.fqdn
+}
+
 output "vm_ssh_command" {
   description = "Example SSH command to connect to the VM"
   value       = "ssh ${var.admin_username}@${azurerm_public_ip.main.ip_address}"
@@ -14,8 +19,8 @@ output "vm_admin_username" {
 }
 
 output "domain" {
-  description = "Domain value passed to Terraform (for Vaultwarden / DNS)"
-  value       = var.domain
+  description = "Effective domain for Vaultwarden (custom domain if set, otherwise Azure FQDN)"
+  value       = local.effective_domain
 }
 
 output "resource_group_name" {

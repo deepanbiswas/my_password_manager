@@ -13,7 +13,7 @@ variable "environment" {
 variable "vm_size" {
   type        = string
   description = "Azure VM size SKU"
-  default     = "Standard_B2s"
+  default     = "Standard_B2als_v2"
 }
 
 variable "admin_username" {
@@ -28,7 +28,14 @@ variable "ssh_public_key_path" {
   default     = "~/.ssh/id_rsa.pub"
 }
 
+variable "dns_label" {
+  type        = string
+  description = "Azure public IP DNS label; produces <dns_label>.<region>.cloudapp.azure.com (must be lowercase letters, digits, hyphens)"
+  default     = "vault-deepanb"
+}
+
 variable "domain" {
   type        = string
-  description = "Domain for Vaultwarden (hostname or https:// URL)"
+  description = "Custom domain for Vaultwarden (e.g. https://vault.example.com). Leave empty to use the Azure-generated FQDN from dns_label."
+  default     = ""
 }

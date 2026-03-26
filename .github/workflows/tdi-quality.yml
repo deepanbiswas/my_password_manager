@@ -51,7 +51,7 @@ jobs:
           cd infrastructure/terraform
           terraform fmt -check -recursive
           mkdir -p .ci-terraform
-          ssh-keygen -t ed25519 -f .ci-terraform/ci -N "" -q
+          ssh-keygen -t rsa -b 4096 -f .ci-terraform/ci -N "" -q
           printf 'domain = "https://ci.validate.invalid"\nssh_public_key_path = "%s/ci.pub"\n' "$(pwd)/.ci-terraform" > terraform.tfvars.ci
           terraform init -backend=false -input=false
           terraform validate -var-file=terraform.tfvars.ci
