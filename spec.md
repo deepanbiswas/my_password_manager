@@ -452,7 +452,7 @@ All cloud resources must be tagged with the following tags for cost tracking and
 
 #### 3.6.2 Cost Constraints
 
-- **Monthly Budget**: ₹4,500/month Azure credits
+- **Monthly Budget**: ₹4,200/month Azure credits
 - **Target Cost**: ₹3,000 - ₹4,600/month for recommended setup
 - **Cost Monitoring**: Must implement cost alerts at 89% and 98% of monthly credits
 - **Cost Tracking**: Must use resource tags for cost analysis

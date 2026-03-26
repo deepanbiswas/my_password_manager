@@ -24,7 +24,7 @@ This directory contains detailed documentation and guides for the self-hosted pa
 
 ### [Cost Analysis](cost-analysis.md)
 - Detailed Azure cost breakdown
-- INR 4,500 monthly credits analysis
+- INR 4,200 monthly credits analysis
 - Cost optimization strategies
 - Provider comparison table
 - Future planning scenarios

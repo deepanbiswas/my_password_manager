@@ -2,13 +2,13 @@
 
 This document helps you comply with **[plan.md](../plan.md) → Automated Deployment → Prerequisites**. Estimated one-time setup: **30–60 minutes** for accounts and tools (DNS and full deploy add more later).
 
-**Related:** [Cost analysis](cost-analysis.md) (₹4,500/month assumption), [Terraform guide](terraform-guide.md), [CI/CD pipelines](cicd-pipelines.md).
+**Related:** [Cost analysis](cost-analysis.md) (₹4,200/month assumption), [Terraform guide](terraform-guide.md), [CI/CD pipelines](cicd-pipelines.md).
 
 ---
 
-## 1. Azure account with subscription and ₹4,500/month credits
+## 1. Azure account with subscription and ₹4,200/month credits
 
-**Comply:** You have an active Azure subscription you can deploy to. The **₹4,500/month** figure is a **budget assumption** from cost docs—not something you enable in Azure.
+**Comply:** You have an active Azure subscription you can deploy to. The **₹4,200/month** figure is a **budget assumption** from cost docs—not something you enable in Azure.
 
 - [ ] Sign in to [Azure Portal](https://portal.azure.com) and confirm at least one **Subscription** (Pay-As-You-Go, credits, MSDN, etc.).
 - [ ] Confirm you can create resource groups and VMs (e.g. **Owner** or **Contributor** on the subscription or resource group).

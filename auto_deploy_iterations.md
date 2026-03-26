@@ -142,7 +142,7 @@ Before running any iteration, you must:
 
 Same as [plan.md](plan.md) Automated Deployment prerequisites:
 
-- [ ] Azure account with subscription and ₹4,500/month credits
+- [ ] Azure account with subscription and ₹4,200/month credits
 - [ ] Domain name registered and DNS access available
 - [ ] GitHub account (for CI/CD) or Azure DevOps account
 - [ ] Terraform installed locally (>= 1.5.0)

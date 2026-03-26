@@ -14,19 +14,19 @@
 | **Network Security Group** | NSG rules | ₹0 | Free |
 | **Total Estimated Monthly Cost** | | **₹3,000 - ₹4,600** | Varies by usage |
 
-## INR 4,500 Monthly Azure Credits Analysis
+## INR 4,200 Monthly Azure Credits Analysis
 
 ### Scenario 1: Standard_B2s VM (Recommended)
 - Monthly cost: ₹3,000 - ₹4,600
-- **Credits coverage: 98% - 150% of monthly cost**
-- **Verdict**: ✅ **Fully covered** - Standard_B2s is the recommended configuration and fits comfortably within monthly credits
-- **Remaining credits**: ₹0 - ₹1,500/month buffer for unexpected costs
+- **Credits coverage**: At the lower end of the range (~₹3,000), ₹4,200/month credits leave headroom; at the upper end (~₹4,600), estimated cost can approach or exceed credits—use budgets, alerts, and right-sizing.
+- **Verdict**: ✅ **Typically covered** for the recommended SKU—monitor spend if your usage trends toward the high end of the estimate.
+- **Remaining buffer**: Roughly ₹0 - ₹1,200/month vs the low end of the cost range; plan for alerts before hitting ₹4,200.
 
 ### Scenario 2: Standard_B1s VM (Minimal)
 - Monthly cost: ₹1,200 - ₹1,800
-- **Credits coverage: 250% - 375% of monthly cost**
+- **Credits coverage: roughly 233% - 350% of monthly cost** (₹4,200 vs estimated VM spend)
 - **Verdict**: ✅ **More than sufficient** - Leaves significant buffer, but may require performance optimization
-- **Remaining credits**: ₹2,700 - ₹3,300/month available for other services
+- **Remaining credits**: ₹2,400 - ₹3,000/month available for other services
 
 ## Cost Optimization Strategies
 
@@ -58,7 +58,7 @@
 
 | Provider | Instance | Monthly Cost (INR) | Notes |
 |----------|----------|-------------------|-------|
-| **Azure (Pay-as-you-go)** | **Standard_B2s** | **₹3,000 - ₹4,600** | **✅ Covered by ₹4,500/month credits** |
+| **Azure (Pay-as-you-go)** | **Standard_B2s** | **₹3,000 - ₹4,600** | **✅ Typically within ₹4,200/month credits (monitor at high usage)** |
 | Azure (Spot VM) | Standard_B2s | ₹1,200 - ₹1,500 | 60-90% discount, can be evicted |
 | DigitalOcean | Basic Droplet | ₹400 - ₹600 | Reliable, good support |
 | Linode | Nanode 1GB | ₹350 - ₹500 | Good performance |
@@ -88,8 +88,8 @@
 ### Azure Cost Alerts
 
 1. Navigate to Azure Portal → Cost Management + Billing
-2. Create budget alert at ₹4,000 (89% of monthly credits) - early warning
-3. Create critical alert at ₹4,400 (98% of monthly credits) - immediate action needed
+2. Create budget alert at ₹3,750 (89% of monthly credits) - early warning
+3. Create critical alert at ₹4,100 (98% of monthly credits) - immediate action needed
 4. Set up email notifications
 5. Configure daily cost reports
 6. Monitor weekly spending trends
@@ -114,4 +114,4 @@ az consumption usage list \
 
 ## Summary
 
-With ₹4,500/month in Azure credits, the recommended Standard_B2s configuration (₹3,000-₹4,600/month) is fully covered with a comfortable buffer for bandwidth and other incidental costs. If credits expire, migration to cheaper VPS providers (Hetzner, DigitalOcean) provides significant cost savings while maintaining functionality.
+With ₹4,200/month in Azure credits, the recommended Standard_B2s configuration (₹3,000-₹4,600/month) is usually workable at typical usage; at the high end of the estimate, costs may approach or exceed monthly credits—use budgets and alerts. If credits expire, migration to cheaper VPS providers (Hetzner, DigitalOcean) provides significant cost savings while maintaining functionality.

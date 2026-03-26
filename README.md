@@ -54,7 +54,7 @@ See [docs/README.md](docs/README.md) for detailed guides including:
 
 - **Recommended Setup**: Standard_B2s VM (2 vCPU, 4 GB RAM)
 - **Monthly Cost**: ₹3,000 - ₹4,600 (INR)
-- **Azure Credits**: ₹4,500/month covers the recommended setup
+- **Azure Credits**: ₹4,200/month covers the recommended setup
 
 ## Technology Stack
 
