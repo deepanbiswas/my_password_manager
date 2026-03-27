@@ -52,9 +52,11 @@ jobs:
           terraform fmt -check -recursive
           mkdir -p .ci-terraform
           ssh-keygen -t rsa -b 4096 -f .ci-terraform/ci -N "" -q
-          printf 'domain = "https://ci.validate.invalid"\nssh_public_key_path = "%s/ci.pub"\n' "$(pwd)/.ci-terraform" > terraform.tfvars.ci
+          # Use TF_VAR_* so terraform validate works on Terraform 1.9+ (validate no longer accepts -var-file).
+          export TF_VAR_domain="https://ci.validate.invalid"
+          export TF_VAR_ssh_public_key_path="$(pwd)/.ci-terraform/ci.pub"
           terraform init -backend=false -input=false
-          terraform validate -var-file=terraform.tfvars.ci
+          terraform validate
 
       - name: Shellcheck
         run: |
