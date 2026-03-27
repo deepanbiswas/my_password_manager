@@ -5,7 +5,7 @@ location              = "Central India"
 environment           = "production"
 vm_size               = "Standard_B2als_v2"
 admin_username        = "azureadminuser"
-ssh_public_key_path   = "~/.ssh/id_rsa.pub"
+ssh_public_key_path   = "~/.ssh/id_rsa_vaultwarden.pub"
 
 # Azure free FQDN route (no domain purchase required):
 #   Set dns_label to a unique lowercase string (letters, digits, hyphens).
