@@ -1,0 +1,184 @@
+# Automated deployment: Terraform plan/apply on main, then SSH deploy + verify on VM.
+# See docs/cicd-pipelines.md and auto_deploy_iterations.md (Iteration 2).
+#
+# Requires GitHub Secrets (docs/cicd-pipelines.md): AZURE_CREDENTIALS, DOMAIN,
+# SSH_PRIVATE_KEY, VM_USERNAME, plus individual Azure IDs if not embedded in AZURE_CREDENTIALS.
+
+name: Deploy
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "infrastructure/**"
+      - "infrastructure/templates/**"
+      - ".github/workflows/deploy.yml"
+      - "docker-compose.yml"
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Deployment environment"
+        type: choice
+        options:
+          - production
+          - staging
+        default: production
+
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  terraform-plan:
+    name: terraform-plan
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.5.0"
+          terraform_wrapper: false
+
+      - name: Configure Azure credentials
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Reference individual Azure secrets
+        run: ":"
+        env:
+          AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+
+      - name: Prepare SSH public key for Terraform
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          mkdir -p .ci-ssh
+          echo "$SSH_PRIVATE_KEY" > .ci-ssh/id_rsa
+          chmod 600 .ci-ssh/id_rsa
+          ssh-keygen -y -f .ci-ssh/id_rsa > .ci-ssh/id_rsa.pub
+          echo "TF_VAR_ssh_public_key_path=${GITHUB_WORKSPACE}/.ci-ssh/id_rsa.pub" >> "$GITHUB_ENV"
+
+      - name: Terraform Init
+        working-directory: infrastructure/terraform
+        run: terraform init -input=false
+        env:
+          TF_VAR_domain: ${{ secrets.DOMAIN }}
+
+      - name: Terraform Validate
+        working-directory: infrastructure/terraform
+        run: terraform validate
+        env:
+          TF_VAR_domain: ${{ secrets.DOMAIN }}
+
+      - name: Terraform Plan
+        working-directory: infrastructure/terraform
+        run: terraform plan -no-color -out=tfplan
+        env:
+          TF_VAR_domain: ${{ secrets.DOMAIN }}
+
+      - name: Upload Terraform plan
+        uses: actions/upload-artifact@v4
+        with:
+          name: tfplan
+          path: infrastructure/terraform/tfplan
+          if-no-files-found: error
+
+  terraform-apply:
+    name: terraform-apply
+    runs-on: ubuntu-latest
+    needs:
+      - terraform-plan
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.5.0"
+          terraform_wrapper: false
+
+      - name: Configure Azure credentials
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Reference individual Azure secrets
+        run: ":"
+        env:
+          AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+
+      - name: Download Terraform plan
+        uses: actions/download-artifact@v4
+        with:
+          name: tfplan
+          path: infrastructure/terraform
+
+      - name: Prepare SSH public key for Terraform
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          mkdir -p .ci-ssh
+          echo "$SSH_PRIVATE_KEY" > .ci-ssh/id_rsa
+          chmod 600 .ci-ssh/id_rsa
+          ssh-keygen -y -f .ci-ssh/id_rsa > .ci-ssh/id_rsa.pub
+          echo "TF_VAR_ssh_public_key_path=${GITHUB_WORKSPACE}/.ci-ssh/id_rsa.pub" >> "$GITHUB_ENV"
+
+      - name: Terraform Init
+        working-directory: infrastructure/terraform
+        run: terraform init -input=false
+        env:
+          TF_VAR_domain: ${{ secrets.DOMAIN }}
+
+      - name: Terraform Apply
+        working-directory: infrastructure/terraform
+        run: terraform apply -auto-approve tfplan
+        env:
+          TF_VAR_domain: ${{ secrets.DOMAIN }}
+
+      - name: Get VM Public IP
+        id: vmip
+        working-directory: infrastructure/terraform
+        run: |
+          echo "public_ip=$(terraform output -raw vm_public_ip)" >> "$GITHUB_OUTPUT"
+
+      - name: Setup SSH
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+
+      - name: Deploy Application Configuration
+        env:
+          VM_PUBLIC_IP: ${{ steps.vmip.outputs.public_ip }}
+          VM_USERNAME: ${{ secrets.VM_USERNAME }}
+          DOMAIN: ${{ secrets.DOMAIN }}
+        run: |
+          set -euo pipefail
+          echo "Deploy Application Configuration to ${VM_USERNAME}@${VM_PUBLIC_IP}"
+          echo "::notice::Full SSH deploy (templates, docker compose, Caddy) is expanded in Iteration 3; placeholder only."
+          # ssh -o StrictHostKeyChecking=accept-new "${VM_USERNAME}@${VM_PUBLIC_IP}" '...'
+
+      - name: Verify Deployment
+        env:
+          VM_PUBLIC_IP: ${{ steps.vmip.outputs.public_ip }}
+          DOMAIN: ${{ secrets.DOMAIN }}
+        run: |
+          set -euo pipefail
+          echo "Verify Deployment for ${DOMAIN} (VM ${VM_PUBLIC_IP})"
+          echo "::notice::HTTPS health check and container verification are expanded in Iteration 3; placeholder only."
