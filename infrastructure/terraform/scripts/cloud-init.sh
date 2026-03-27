@@ -3,6 +3,8 @@
 set -euo pipefail
 export DEBIAN_FRONTEND=noninteractive
 
+# Terraform templatefile injects admin_username at apply time.
+# shellcheck disable=SC2154
 ADMIN="${admin_username}"
 
 apt-get update
@@ -11,6 +13,7 @@ apt-get upgrade -y
 curl -fsSL https://get.docker.com | sh
 usermod -aG docker "$ADMIN"
 
+# shellcheck disable=SC2034
 COMPOSE_VER="v2.24.7"
 curl -fsSL "https://github.com/docker/compose/releases/download/$${COMPOSE_VER}/docker-compose-linux-x86_64" \
   -o /usr/local/bin/docker-compose

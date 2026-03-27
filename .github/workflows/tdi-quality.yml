@@ -76,7 +76,8 @@ jobs:
             echo "::notice::No shell scripts under iterations/ or infrastructure/terraform/scripts; skipping shellcheck."
             exit 0
           fi
-          shellcheck "${files[@]}"
+          # SC1091: dynamic paths to sourced libs (see shellcheck -x); not worth failing CI.
+          shellcheck -e SC1091 "${files[@]}"
 
       - name: Validate workflow YAML syntax
         run: |
