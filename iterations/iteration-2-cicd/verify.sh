@@ -28,7 +28,11 @@ fi
 print_success "deploy.yml is valid YAML"
 
 if command -v yamllint >/dev/null 2>&1; then
-  yamllint "$DEPLOY_YML" && print_success "yamllint OK" || fail "yamllint failed"
+  if yamllint "$DEPLOY_YML"; then
+    print_success "yamllint OK"
+  else
+    fail "yamllint failed"
+  fi
 else
   print_warning "yamllint not installed; skipping (optional)"
 fi
