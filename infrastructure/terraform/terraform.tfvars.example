@@ -1,0 +1,20 @@
+# Copy this file to terraform.tfvars (gitignored) and set real values.
+# Run Terraform from infrastructure/terraform: terraform init && terraform plan
+
+location              = "Central India"
+environment           = "production"
+vm_size               = "Standard_B2als_v2"
+admin_username        = "azureadminuser"
+ssh_public_key_path   = "~/.ssh/id_rsa_vaultwarden.pub"
+
+# Azure free FQDN route (no domain purchase required):
+#   Set dns_label to a unique lowercase string (letters, digits, hyphens).
+#   This produces: https://<dns_label>.<region>.cloudapp.azure.com
+#   Leave domain empty ("") to use it automatically.
+dns_label = "vault-deepanb"
+domain    = ""
+
+# Custom domain route (if you own a domain):
+#   Comment out dns_label above (or leave it — it won't affect routing).
+#   Set domain to your full URL; after apply point your DNS A record at vm_public_ip.
+# domain = "https://vault.yourdomain.com"

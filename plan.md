@@ -126,7 +126,7 @@ This checklist supports two deployment approaches:
 
 **Estimated Time**: 30-60 minutes (one-time setup)
 
-- [ ] Azure account with subscription and ₹4,500/month credits
+- [ ] Azure account with subscription and ₹4,200/month credits
 - [ ] Domain name registered and DNS access available
 - [ ] GitHub account (for CI/CD) or Azure DevOps account
 - [ ] Terraform installed locally (>= 1.5.0)
@@ -259,8 +259,8 @@ This checklist supports two deployment approaches:
   - **Troubleshooting**: If pipeline failed, see [Troubleshooting Guide - CI/CD Issues](docs/troubleshooting.md#cicd-issues)
 - [ ] **Post-Deployment Verification**: Follow [Post-Deployment Verification](#post-deployment-verification) steps in Common Configuration Steps
 - [ ] **Cost Monitoring Setup**: Navigate to Azure Portal → Cost Management + Billing
-  - [ ] Create budget alert at ₹4,000 (89% of monthly credits) - early warning
-  - [ ] Create critical alert at ₹4,400 (98% of monthly credits) - immediate action needed
+  - [ ] Create budget alert at ₹3,750 (89% of monthly credits) - early warning
+  - [ ] Create critical alert at ₹4,100 (98% of monthly credits) - immediate action needed
   - [ ] Set up email notifications
   - [ ] Configure daily cost reports
   - [ ] Verify tag-based cost tracking (use Azure CLI):
@@ -500,8 +500,8 @@ If the script is not available, you can tag resources manually using Azure CLI c
 
 **Cost Monitoring Setup:**
 - [ ] Navigate to Azure Portal → Cost Management + Billing
-- [ ] Create budget alert at ₹4,000 (89% of monthly credits) - early warning
-- [ ] Create critical alert at ₹4,400 (98% of monthly credits) - immediate action needed
+- [ ] Create budget alert at ₹3,750 (89% of monthly credits) - early warning
+- [ ] Create critical alert at ₹4,100 (98% of monthly credits) - immediate action needed
 - [ ] Set up email notifications
 - [ ] Configure daily cost reports
 - [ ] Verify tag-based cost tracking (use Azure CLI):

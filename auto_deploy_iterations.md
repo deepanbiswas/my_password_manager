@@ -33,6 +33,43 @@ This document provides a Test-Driven Infrastructure (TDI) approach for deploying
 7. **Reference plan.md** - All execution steps reference the "Automated Deployment (Recommended)" section in [plan.md](plan.md)
 8. **Use rollback scripts if needed** - Each iteration has a `rollback.sh` script to revert changes if verification fails
 
+### Git workflow and branching (GitHub)
+
+Use **one feature branch per iteration** so work stays isolated, `main` stays stable, and **pull requests** run automated quality checks before merge.
+
+**Branch naming** (mirror the `iterations/` folder for each phase):
+
+| Iteration | Branch name |
+|-----------|-------------|
+| 1 | `feature/tdi-iteration-1-infrastructure` |
+| 2 | `feature/tdi-iteration-2-cicd` |
+| 3 | `feature/tdi-iteration-3-services` |
+| 4 | `feature/tdi-iteration-4-ssl` |
+| 5 | `feature/tdi-iteration-5-security` |
+| 6 | `feature/tdi-iteration-6-backup` |
+| 7 | `feature/tdi-iteration-7-monitoring` |
+
+**Recommended steps per iteration**
+
+1. `git checkout main && git pull`
+2. `git checkout -b feature/tdi-iteration-N-...` (use the name from the table above)
+3. Implement the iteration; commit in logical chunks
+4. `git push -u origin feature/tdi-iteration-N-...`
+5. Open a **Pull Request** into `main`
+6. Wait for **GitHub Actions** (see `.github/workflows/`, e.g. `tdi-quality.yml`) to pass on the PR
+7. Run any **live** steps for that iteration (for example `terraform apply` when infrastructure changes; allow time for cloud-init on new VMs)
+8. Run this iteration’s **`verify.sh`**; it must exit **0**
+9. Complete **code review** (peer or self-review using project and Cursor rules)
+10. **Merge** the PR into `main` (choose **squash** or **merge commit** and stay consistent). Delete the feature branch after merge if you do not need it for history
+
+**Merge criteria (all required)**
+
+- CI workflows for the PR are **green** (do not merge on failing checks)
+- This iteration’s **`verify.sh`** succeeds locally (or on an approved runner)—CI does **not** replace SSH or Azure-backed checks unless you add a separate integration workflow with secrets
+- **Review** completed (security and alignment with [spec.md](spec.md) / [plan.md](plan.md))
+
+Iterations **2–7** follow the same branching pattern. Later iterations may touch only part of the repo; path filters on workflows still apply—see `.github/workflows/` for which paths trigger which jobs.
+
 ### Script Organization
 
 All verification and rollback scripts are organized in a hybrid folder structure that will be created during execution:
@@ -105,7 +142,7 @@ Before running any iteration, you must:
 
 Same as [plan.md](plan.md) Automated Deployment prerequisites:
 
-- [ ] Azure account with subscription and ₹4,500/month credits
+- [ ] Azure account with subscription and ₹4,200/month credits
 - [ ] Domain name registered and DNS access available
 - [ ] GitHub account (for CI/CD) or Azure DevOps account
 - [ ] Terraform installed locally (>= 1.5.0)

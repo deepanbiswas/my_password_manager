@@ -1,0 +1,41 @@
+#!/usr/bin/env bash
+# Nightly backup: SQLite via docker exec, attachments, manifest, GPG encrypt, rclone upload, retention.
+set -euo pipefail
+
+VAULTWARDEN_DATA="${VAULTWARDEN_DATA:-/opt/vaultwarden/vaultwarden/data}"
+BACKUP_DIR="${BACKUP_DIR:-/opt/vaultwarden/backups}"
+SCRIPTS_DIR="${SCRIPTS_DIR:-/opt/vaultwarden/scripts}"
+TS="$(date +%Y%m%d-%H%M%S)"
+STAGE="${BACKUP_DIR}/staging-${TS}"
+RCLONE_REMOTE="${RCLONE_REMOTE_NAME:-gdrive}"
+RETENTION_DAYS="${BACKUP_RETENTION_DAYS:-30}"
+
+mkdir -p "$STAGE"
+
+docker exec vaultwarden sqlite3 /data/db.sqlite3 ".backup /data/db_backup.sqlite3"
+docker cp "vaultwarden:/data/db_backup.sqlite3" "${STAGE}/db_backup.sqlite3"
+docker exec vaultwarden rm -f /data/db_backup.sqlite3
+
+if [[ -d "${VAULTWARDEN_DATA}/attachments" ]]; then
+  tar -czf "${STAGE}/attachments.tar.gz" -C "$VAULTWARDEN_DATA" attachments
+fi
+
+{
+  echo "timestamp=${TS}"
+  find "$STAGE" -type f -exec sha256sum {} \;
+} > "${STAGE}/MANIFEST.txt"
+
+ARCHIVE="${BACKUP_DIR}/vaultwarden-${TS}.tar.gz"
+tar -czf "$ARCHIVE" -C "$STAGE" .
+
+: "${BACKUP_ENCRYPTION_KEY:?BACKUP_ENCRYPTION_KEY must be set (e.g. from .env)}"
+ENCRYPTED="${ARCHIVE}.gpg"
+echo -n "$BACKUP_ENCRYPTION_KEY" | gpg --batch --yes --symmetric --cipher-algo AES256 --passphrase-fd 0 -o "$ENCRYPTED" "$ARCHIVE"
+rm -f "$ARCHIVE"
+
+rclone copy "$ENCRYPTED" "${RCLONE_REMOTE}:vaultwarden-backups/" || exit 1
+rm -rf "$STAGE" "$ENCRYPTED"
+
+find "$BACKUP_DIR" -name '*.tar.gz.gpg' -mtime "+${RETENTION_DAYS}" -delete 2>/dev/null || true
+
+exit 0

@@ -1,0 +1,77 @@
+# Process {{DOMAIN}} with sed during deployment. Paths are relative to compose file on the host (e.g. /opt/vaultwarden).
+version: "3.8"
+
+services:
+  vaultwarden:
+    image: vaultwarden/server:1.30.0
+    container_name: vaultwarden
+    restart: unless-stopped
+    user: "1000:1000"
+    env_file:
+      - .env
+    environment:
+      WEBSOCKET_ENABLED: "true"
+      SIGNUPS_ALLOWED: "true"
+      DOMAIN: "{{DOMAIN}}"
+      ADMIN_TOKEN: ${ADMIN_TOKEN}
+      DATABASE_URL: /data/db.sqlite3
+    volumes:
+      - ./vaultwarden/data:/data
+    networks:
+      - vaultwarden-network
+    labels:
+      com.centurylinklabs.watchtower.enable: "false"
+    deploy:
+      resources:
+        limits:
+          cpus: "1.5"
+          memory: 2G
+
+  caddy:
+    image: caddy:latest
+    container_name: caddy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./caddy/data:/data
+      - ./caddy/config:/config
+    networks:
+      - vaultwarden-network
+    depends_on:
+      - vaultwarden
+    labels:
+      com.centurylinklabs.watchtower.enable: "true"
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 512M
+
+  watchtower:
+    image: containrrr/watchtower:latest
+    container_name: watchtower
+    restart: unless-stopped
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      WATCHTOWER_CLEANUP: "true"
+      WATCHTOWER_POLL_INTERVAL: "86400"
+      WATCHTOWER_INCLUDE_STOPPED: "false"
+      WATCHTOWER_REVIVE_STOPPED: "false"
+      WATCHTOWER_LABEL_ENABLE: "true"
+    command: --interval 86400
+    networks:
+      - vaultwarden-network
+    deploy:
+      resources:
+        limits:
+          cpus: "0.25"
+          memory: 256M
+
+networks:
+  vaultwarden-network:
+    driver: bridge

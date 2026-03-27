@@ -10,6 +10,13 @@
 .terraform/
 .terraform.lock.hcl
 
+# Local Terraform variables (copy from terraform.tfvars.example)
+**/terraform.tfvars
+
+# Ephemeral CI validation (tdi-quality workflow / local test)
+infrastructure/terraform/.ci-terraform/
+infrastructure/terraform/terraform.tfvars.ci
+
 # Backup files
 backups/
 *.backup

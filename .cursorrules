@@ -72,5 +72,5 @@ Separate **requirements** (WHAT) from **execution** (HOW):
 - SQLite is embedded in Vaultwarden container (not installed separately)
 - Caddy is recommended over Nginx for automatic SSL
 - All backups must be encrypted before upload
-- Cost analysis assumes ₹4,500/month Azure credits
+- Cost analysis assumes ₹4,200/month Azure credits
 - Infrastructure must be vendor-agnostic (Docker-based)

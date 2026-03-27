@@ -4,6 +4,10 @@ This directory contains detailed documentation and guides for the self-hosted pa
 
 ## Documentation Files
 
+### [Automated deployment prerequisites](prerequisites-checklist.md)
+- Checklist for [plan.md](../plan.md) prerequisites: Azure, domain/DNS, GitHub, Terraform, Azure CLI, SSH keys, Google Drive / Rclone
+- Verification commands and suggested order
+
 ### [Reverse Proxy Comparison](reverse-proxy-comparison.md)
 - Why Caddy is recommended vs Nginx
 - Feature comparison table
@@ -20,7 +24,7 @@ This directory contains detailed documentation and guides for the self-hosted pa
 
 ### [Cost Analysis](cost-analysis.md)
 - Detailed Azure cost breakdown
-- INR 4,500 monthly credits analysis
+- INR 4,200 monthly credits analysis
 - Cost optimization strategies
 - Provider comparison table
 - Future planning scenarios
@@ -57,6 +61,7 @@ This directory contains detailed documentation and guides for the self-hosted pa
 
 - **Main Specification**: [../spec.md](../spec.md)
 - **Deployment Checklist**: [../plan.md](../plan.md)
+- **Prerequisites (automated deployment)**: [prerequisites-checklist.md](prerequisites-checklist.md)
 - **Configuration Template**: [../.env.example](../.env.example)
 
 ## Documentation Purpose

@@ -1,0 +1,25 @@
+#!/usr/bin/env bash
+# Generated from template — replace {{DOMAIN}} with full URL (https://...).
+set -euo pipefail
+
+DOMAIN="{{DOMAIN}}"
+ALERT_EMAIL="${ALERT_EMAIL:-}"
+
+log_fail() {
+  echo "[$(date -Iseconds)] HEALTH CHECK FAILED: $*" >&2
+  if [[ -n "$ALERT_EMAIL" ]]; then
+    echo "$*" | mail -s "Vaultwarden health check failed" "$ALERT_EMAIL" 2>/dev/null || true
+  fi
+  exit 1
+}
+
+code=$(curl -fsS -o /dev/null -w "%{http_code}" "$DOMAIN" || echo "fail")
+if [[ "$code" != "200" ]]; then
+  log_fail "HTTP $code from $DOMAIN"
+fi
+
+if ! docker ps --format '{{.Names}}' | grep -qx vaultwarden; then
+  log_fail "vaultwarden container not running"
+fi
+
+exit 0
