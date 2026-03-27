@@ -17,6 +17,7 @@ on:
       - "infrastructure/**"
       - "iterations/**"
       - ".github/workflows/tdi-quality.yml"
+      - ".github/workflows/deploy.yml"
   push:
     branches:
       - main
@@ -24,6 +25,7 @@ on:
       - "infrastructure/**"
       - "iterations/**"
       - ".github/workflows/tdi-quality.yml"
+      - ".github/workflows/deploy.yml"
 
 jobs:
   tdi-quality:
