@@ -114,8 +114,7 @@ load_vm_config_from_env() {
   fi
   PUBLIC_IP="${VM_PUBLIC_IP}"
   ADMIN_USER="${VM_USERNAME}"
-  # DOMAIN expected as full URL (e.g. https://host/) — same as Terraform output domain.
-  DOMAIN="${DOMAIN}"
+  # DOMAIN is already set in the environment (full URL); same contract as Terraform output domain.
   RESOURCE_GROUP="${RESOURCE_GROUP:-}"
   VM_NAME="${VM_NAME:-}"
   export PUBLIC_IP ADMIN_USER DOMAIN RESOURCE_GROUP VM_NAME
@@ -171,6 +170,7 @@ ssh_vm() {
     print_failure "No SSH private key: set SSH_IDENTITY_FILE or ~/.ssh/id_rsa_vaultwarden (or run in GitHub Actions with ssh-agent)" >&2
     return 1
   fi
+  # shellcheck disable=SC2029 -- remote runs quoted command from local printf
   ssh "${ssh_opts[@]}" "${ADMIN_USER}@${PUBLIC_IP}" "bash -lc $(printf '%q' "$cmd")"
 }
 
