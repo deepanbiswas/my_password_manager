@@ -126,13 +126,13 @@ This checklist supports two deployment approaches:
 
 **Estimated Time**: 30-60 minutes (one-time setup)
 
-- [ ] Azure account with subscription and ₹4,200/month credits
-- [ ] Domain name registered and DNS access available
-- [ ] GitHub account (for CI/CD) or Azure DevOps account
-- [ ] Terraform installed locally (>= 1.5.0)
-- [ ] Azure CLI installed and configured
-- [ ] SSH key pair generated
-- [ ] Google Drive account ready for backup storage
+- [X] *Azure account with subscription and ₹4,200/month credits*
+- [X] *Domain name registered and DNS access available*
+- [X] *GitHub account (for CI/CD) or Azure DevOps account*
+- [X] *Terraform installed locally (>= 1.5.0)*
+- [X] *Azure CLI installed and configured*
+- [X] *SSH key pair generated*
+- [X] *Google Drive account ready for backup storage*
 
 **Total Estimated Time for Automated Deployment**: 2-3 hours (including DNS propagation and verification)
 
@@ -143,8 +143,8 @@ This checklist supports two deployment approaches:
 **Estimated Time**: 30-45 minutes
 
 **Create Directory Structure:**
-- [ ] Create base directories: `mkdir -p infrastructure/terraform/scripts infrastructure/templates`
-- [ ] Verify directory structure:
+- [X] *Create base directories: `mkdir -p infrastructure/terraform/scripts infrastructure/templates`*
+- [X] *Verify directory structure:*
   ```
   infrastructure/
   ├── terraform/
@@ -160,30 +160,30 @@ This checklist supports two deployment approaches:
   ```
 
 **Create Terraform Configuration Files:**
-- [ ] Create `infrastructure/terraform/main.tf` - Follow instructions in [Terraform Guide - Main Configuration](docs/terraform-guide.md#main-configuration-infrastructureterraformmaintf)
-- [ ] Create `infrastructure/terraform/azure.tf` - Follow instructions in [Terraform Guide - Azure Resources](docs/terraform-guide.md#azure-resources-infrastructureterraformazuretf)
+- [X] *Create `infrastructure/terraform/main.tf` - Follow instructions in [Terraform Guide - Main Configuration](docs/terraform-guide.md#main-configuration-infrastructureterraformmaintf)*
+- [X] *Create `infrastructure/terraform/azure.tf` - Follow instructions in [Terraform Guide - Azure Resources](docs/terraform-guide.md#azure-resources-infrastructureterraformazuretf)*
   - **Note**: This file contains all Azure vendor-specific resources (resource group, network, VM, etc.)
   - Separating vendor-specific code makes it easier to add support for other cloud providers (AWS, GCP) in the future
-- [ ] Create `infrastructure/terraform/variables.tf` - Follow instructions in [Terraform Guide - Variables File](docs/terraform-guide.md#variables-file-infrastructureterraformvariablestf)
-- [ ] Create `infrastructure/terraform/outputs.tf` - Follow instructions in [Terraform Guide - Outputs File](docs/terraform-guide.md#outputs-file-infrastructureterraformoutputstf)
+- [X] *Create `infrastructure/terraform/variables.tf` - Follow instructions in [Terraform Guide - Variables File](docs/terraform-guide.md#variables-file-infrastructureterraformvariablestf)*
+- [X] *Create `infrastructure/terraform/outputs.tf` - Follow instructions in [Terraform Guide - Outputs File](docs/terraform-guide.md#outputs-file-infrastructureterraformoutputstf)*
 
 **Create Cloud-Init Script:**
-- [ ] Create `infrastructure/terraform/scripts/cloud-init.sh` - Follow instructions in [Terraform Guide - Cloud-Init Script](docs/terraform-guide.md#cloud-init-script-infrastructureterraformscriptscloud-initsh)
-- [ ] Make script executable: `chmod +x infrastructure/terraform/scripts/cloud-init.sh`
-- [ ] **Important**: The `azure.tf` file references this script via `templatefile("${path.module}/scripts/cloud-init.sh", {...})`, so it must exist before running `terraform plan`
+- [X] *Create `infrastructure/terraform/scripts/cloud-init.sh` - Follow instructions in [Terraform Guide - Cloud-Init Script](docs/terraform-guide.md#cloud-init-script-infrastructureterraformscriptscloud-initsh)*
+- [X] *Make script executable: `chmod +x infrastructure/terraform/scripts/cloud-init.sh`*
+- [X] *Important: The `azure.tf` file references this script via `templatefile("${path.module}/scripts/cloud-init.sh", {...})`, so it must exist before running `terraform plan`*
 
 **Create Deployment Templates:**
-- [ ] Create templates directory: `mkdir -p infrastructure/templates`
-- [ ] Create `infrastructure/templates/docker-compose.yml.template` - Follow instructions in [Templates Reference - Docker Compose Template](#docker-compose-template-docker-composeymltemplate)
-- [ ] Create `infrastructure/templates/Caddyfile.template` - Follow instructions in [Templates Reference - Caddyfile Template](#caddyfile-template-caddyfiletemplate)
-- [ ] Create `infrastructure/templates/backup.sh.template` - Follow instructions in [Templates Reference - Backup Script Template](#backup-script-template-backupshtemplate)
-- [ ] Create `infrastructure/templates/health-check.sh.template` - Follow instructions in [Templates Reference - Health Check Script Template](#health-check-script-template-health-checkshtemplate)
-- [ ] Create `infrastructure/templates/.env.template` - Follow instructions in [Templates Reference - Environment Variables Template](#environment-variables-template-envtemplate)
-- [ ] **Note**: The `tag-resources.sh.template` file will be created in `infrastructure/templates/` when needed. Follow instructions in [Resource Tagging Script](#resource-tagging-script-tag-resourcessh) in Templates Reference section.
-- [ ] **Note**: These templates will be used by both CI/CD pipeline and manual deployment to generate deployment files with environment-specific values. See [Templates Reference](#templates-reference) section for template instructions.
+- [X] *Create templates directory: `mkdir -p infrastructure/templates`*
+- [X] *Create `infrastructure/templates/docker-compose.yml.template` - Follow instructions in [Templates Reference - Docker Compose Template](#docker-compose-template-docker-composeymltemplate)*
+- [X] *Create `infrastructure/templates/Caddyfile.template` - Follow instructions in [Templates Reference - Caddyfile Template](#caddyfile-template-caddyfiletemplate)*
+- [X] *Create `infrastructure/templates/backup.sh.template` - Follow instructions in [Templates Reference - Backup Script Template](#backup-script-template-backupshtemplate)*
+- [X] *Create `infrastructure/templates/health-check.sh.template` - Follow instructions in [Templates Reference - Health Check Script Template](#health-check-script-template-health-checkshtemplate)*
+- [X] *Create `infrastructure/templates/.env.template` - Follow instructions in [Templates Reference - Environment Variables Template](#environment-variables-template-envtemplate)*
+- [X] *Note: The `tag-resources.sh.template` file will be created in `infrastructure/templates/` when needed. Follow instructions in [Resource Tagging Script](#resource-tagging-script-tag-resourcessh) in Templates Reference section.*
+- [X] *Note: These templates will be used by both CI/CD pipeline and manual deployment to generate deployment files with environment-specific values. See [Templates Reference](#templates-reference) section for template instructions.*
 
 **Create Variable Values File:**
-- [ ] Create `infrastructure/terraform/terraform.tfvars` with your configuration:
+- [X] *Create `infrastructure/terraform/terraform.tfvars` with your configuration:*
   ```hcl
   location         = "Central India"
   environment      = "production"
@@ -192,20 +192,20 @@ This checklist supports two deployment approaches:
   domain           = "https://your-domain.com"
   ssh_public_key_path = "~/.ssh/id_rsa.pub"
   ```
-- [ ] **Note**: `terraform.tfvars` is not committed to Git (should be in `.gitignore`)
+- [X] *Note: `terraform.tfvars` is not committed to Git (should be in `.gitignore`)*
 
 **Configure Azure Provider:**
-- [ ] Install Azure CLI: `az --version` (if not installed)
-- [ ] Login to Azure: `az login`
-- [ ] Set subscription: `az account set --subscription <subscription-id>`
-- [ ] Verify credentials: `az account show`
+- [X] *Install Azure CLI: `az --version` (if not installed)*
+- [X] *Login to Azure: `az login`*
+- [X] *Set subscription: `az account set --subscription <subscription-id>`*
+- [X] *Verify credentials: `az account show`*
 
 **Initialize and Deploy:**
-- [ ] Navigate to Terraform directory: `cd infrastructure/terraform`
-- [ ] Initialize Terraform: `terraform init`
-- [ ] Review infrastructure plan: `terraform plan`
-- [ ] Apply infrastructure: `terraform apply` (type `yes` when prompted)
-- [ ] Save outputs: Note the `vm_public_ip` output for DNS configuration
+- [X] *Navigate to Terraform directory: `cd infrastructure/terraform`*
+- [X] *Initialize Terraform: `terraform init`*
+- [X] *Review infrastructure plan: `terraform plan`*
+- [X] *Apply infrastructure: `terraform apply` (type `yes` when prompted)*
+- [X] *Save outputs: Note the `vm_public_ip` output for DNS configuration*
 
 ### Step 2: CI/CD Pipeline Setup
 
@@ -213,8 +213,8 @@ This checklist supports two deployment approaches:
 
 **Note**: If following the iterative deployment approach, this step corresponds to [Iteration 2: CI/CD Pipeline Setup](auto_deploy_iterations.md#iteration-2-cicd-pipeline-setup) in the Test-Driven Infrastructure guide.
 
-- [ ] Choose CI/CD platform (GitHub Actions recommended)
-- [ ] Create pipeline configuration - Follow instructions in [CI/CD Pipelines Guide](docs/cicd-pipelines.md)
+- [X] *Choose CI/CD platform (GitHub Actions recommended)*
+- [X] *Create pipeline configuration - Follow instructions in [CI/CD Pipelines Guide](docs/cicd-pipelines.md)*
   - Create `.github/workflows/deploy.yml` for GitHub Actions (or `azure-pipelines.yml` for Azure DevOps)
   - Follow workflow structure and step instructions from the guide
 - [ ] Configure GitHub Secrets (or Azure DevOps variables):
@@ -226,8 +226,8 @@ This checklist supports two deployment approaches:
   - [ ] `DOMAIN`
   - [ ] `SSH_PRIVATE_KEY`
   - [ ] `VM_USERNAME`
-- [ ] Push code to trigger pipeline
-- [ ] Monitor pipeline execution
+- [X] *Push code to trigger pipeline*
+- [X] *Monitor pipeline execution*
 
 ### Step 3: Post-Infrastructure Configuration
 
