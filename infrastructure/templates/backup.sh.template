@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Nightly backup: SQLite via docker exec, attachments, manifest, GPG encrypt, rclone upload, retention.
+# Nightly backup: SQLite via host sqlite3 + bind mount, attachments, manifest, GPG encrypt, rclone upload, retention.
 set -euo pipefail
 
 VAULTWARDEN_DATA="${VAULTWARDEN_DATA:-/opt/vaultwarden/vaultwarden/data}"
@@ -12,9 +12,13 @@ RETENTION_DAYS="${BACKUP_RETENTION_DAYS:-30}"
 
 mkdir -p "$STAGE"
 
-docker exec vaultwarden sqlite3 /data/db.sqlite3 ".backup /data/db_backup.sqlite3"
-docker cp "vaultwarden:/data/db_backup.sqlite3" "${STAGE}/db_backup.sqlite3"
-docker exec vaultwarden rm -f /data/db_backup.sqlite3
+# Host sqlite3 against bind-mounted DB (vaultwarden/server image has no sqlite3 binary; see spec.md).
+DB_FILE="${VAULTWARDEN_DATA}/db.sqlite3"
+if [[ ! -f "$DB_FILE" ]]; then
+  echo "Database not found at ${DB_FILE}" >&2
+  exit 1
+fi
+sqlite3 "$DB_FILE" ".backup '${STAGE}/db_backup.sqlite3'"
 
 if [[ -d "${VAULTWARDEN_DATA}/attachments" ]]; then
   tar -czf "${STAGE}/attachments.tar.gz" -C "$VAULTWARDEN_DATA" attachments

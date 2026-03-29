@@ -44,11 +44,11 @@ else
   print_success "Rclone remote 'gdrive' present in config"
 fi
 
-if ! ssh_vm "grep -qE 'docker exec|docker cp' ${BACKUP_SCRIPT}"; then
-  print_failure "backup.sh should use docker exec / docker cp for container-based backup"
+if ! ssh_vm "grep -qE 'sqlite3.*\\.backup|docker exec.*sqlite3|docker cp' ${BACKUP_SCRIPT}"; then
+  print_failure "backup.sh should back up the DB with sqlite3 .backup (host bind mount or container)"
   STATUS=1
 else
-  print_success "backup.sh uses docker exec / docker cp"
+  print_success "backup.sh uses sqlite3 .backup or docker-based DB copy"
 fi
 
 if ! ssh_vm "grep -qE '^BACKUP_ENCRYPTION_KEY=' ${ENV_FILE} 2>/dev/null"; then
