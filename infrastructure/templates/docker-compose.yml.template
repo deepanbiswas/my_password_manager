@@ -1,5 +1,5 @@
 # Process {{DOMAIN}} with sed during deployment. Paths are relative to compose file on the host (e.g. /opt/vaultwarden).
-version: "3.8"
+# No top-level `version:` key — obsolete in Compose v2+ (Docker warns if present).
 
 services:
   vaultwarden:
@@ -54,8 +54,10 @@ services:
           cpus: "0.5"
           memory: 512M
 
+  # nicholas-fedor fork: containrrr/watchtower is unmaintained; old images use Docker API 1.25 and fail on
+  # modern Engine (minimum API 1.40+). See https://github.com/containrrr/watchtower/issues/2122
   watchtower:
-    image: containrrr/watchtower:latest
+    image: ghcr.io/nicholas-fedor/watchtower:latest
     container_name: watchtower
     restart: unless-stopped
     volumes:

@@ -286,7 +286,7 @@ The system must deploy the following services:
    - Must implement rate limiting
 
 3. **Update Automation (Watchtower)**
-   - Image: `containrrr/watchtower:latest`
+   - Image: `ghcr.io/nicholas-fedor/watchtower:latest` (maintained fork; `containrrr/watchtower` is incompatible with Docker Engine 28+ API minimums)
    - Must monitor and update containers automatically (Caddy and Watchtower only)
    - **Vaultwarden Exclusion**: Watchtower must be disabled for Vaultwarden container (uses version pinning)
    - Must clean up old images after updates
