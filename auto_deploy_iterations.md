@@ -551,11 +551,13 @@ cd infrastructure/terraform
 
 ### Success Criteria
 
-- [ ] HTTPS working and accessible
-- [ ] SSL certificate valid and obtained from Let's Encrypt
-- [ ] HTTP redirects to HTTPS
-- [ ] TLS version 1.2 or 1.3
-- [ ] Security headers present (HSTS, X-Frame-Options, CSP)
+- [X] HTTPS working and accessible
+- [X] SSL certificate valid and obtained from Let's Encrypt
+- [X] HTTP redirects to HTTPS
+- [X] TLS version 1.2 or 1.3
+- [X] Security headers present (HSTS, X-Frame-Options, CSP)
+
+*(Enforced by `iterations/iteration-4-ssl/verify.sh` once DNS and services are live.)*
 
 ### Rollback Script Requirements
 

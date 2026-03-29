@@ -58,3 +58,9 @@
 - CI green (`tdi-quality.yml` + any other required workflows).
 - **`../../iterations/iteration-4-ssl/verify.sh`** exit **0** from `infrastructure/terraform`.
 - Self/peer review per project rules.
+
+---
+
+## Status
+
+**Implemented:** `verify.sh` and `rollback.sh` are in this directory; `verify.sh` covers DNS, Caddyfile, Caddy container, HTTPS/HTTP redirect, TLS 1.2+, and security headers. **`plan.md`** TDI progress marks iteration 4 complete after a passing run.
