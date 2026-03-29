@@ -871,7 +871,7 @@ Each iteration validates critical architectural requirements:
 
 - ✅ Non-root execution (UID 1000:1000)
 - ✅ Watchtower label configuration (WATCHTOWER_LABEL_ENABLE=true)
-- ✅ Container-based SQLite backups (docker exec)
+- ✅ SQLite backups via host `sqlite3` `.backup` on bind-mounted database
 - ✅ Two-phase signup process (enable initially, disable after account creation)
 
 ### Next Steps

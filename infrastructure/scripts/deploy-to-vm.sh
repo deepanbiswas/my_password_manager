@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Deploy templates and start Vaultwarden stack on the VM (CI or local with SSH).
 # Required env: VM_PUBLIC_IP, VM_USERNAME, DOMAIN (full URL, e.g. https://host/)
-# Optional: REPO_ROOT (defaults from script location). Installs backup.sh + nightly crontab (Iteration 6).
+# Optional: REPO_ROOT (defaults from script location). Installs backup.sh + nightly crontab (Iteration 6),
+#            health-check.sh + */15 crontab + logrotate (Iteration 7).
 # Optional: SSH_IDENTITY_FILE — private key path (default: ~/.ssh/id_rsa_vaultwarden if present, same as iterations/common/lib.sh / terraform.tfvars).
 #          On GitHub Actions, ssh-agent usually has the key; no file needed.
 set -euo pipefail
@@ -128,6 +129,17 @@ chmod +x scripts/backup.sh
 if ! { crontab -l 2>/dev/null || true; } | grep -qF '/opt/vaultwarden/scripts/backup.sh'; then
   ({ crontab -l 2>/dev/null || true; echo '0 2 * * * cd /opt/vaultwarden && set -a && . ./.env && set +a && /opt/vaultwarden/scripts/backup.sh >> /var/log/vaultwarden-backup.log 2>&1'; }) | crontab -
 fi
+
+# Health check + logrotate (TDI iteration 7; templates under infrastructure/templates/)
+sed "s|{{DOMAIN}}|${DOMAIN}|g" infrastructure/templates/health-check.sh.template > scripts/health-check.sh
+chmod +x scripts/health-check.sh
+if ! { crontab -l 2>/dev/null || true; } | grep -qF '/opt/vaultwarden/scripts/health-check.sh'; then
+  ({ crontab -l 2>/dev/null || true; echo '*/15 * * * * /opt/vaultwarden/scripts/health-check.sh >> /var/log/vaultwarden-health.log 2>&1'; }) | crontab -
+fi
+sudo touch /var/log/vaultwarden-health.log
+sudo chown "$(id -un):$(id -gn)" /var/log/vaultwarden-health.log
+sudo cp -f infrastructure/templates/logrotate-vaultwarden.conf /etc/logrotate.d/vaultwarden
+sudo chmod 644 /etc/logrotate.d/vaultwarden
 REMOTE
 
 echo "Deploy-to-vm finished."
