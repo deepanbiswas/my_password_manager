@@ -13,6 +13,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="${REPO_ROOT:-$(cd "${SCRIPT_DIR}/../.." && pwd)}"
 TEMPLATES="${REPO_ROOT}/infrastructure/templates"
+DOCKER_CADDY="${REPO_ROOT}/infrastructure/docker/caddy"
 
 resolve_identity() {
   local f="${SSH_IDENTITY_FILE:-}"
@@ -56,12 +57,22 @@ if [[ ! -d "$TEMPLATES" ]]; then
   echo "Missing templates directory: $TEMPLATES" >&2
   exit 1
 fi
+if [[ ! -d "$DOCKER_CADDY" ]]; then
+  echo "Missing Caddy Dockerfile directory: $DOCKER_CADDY" >&2
+  exit 1
+fi
 
 echo "Syncing templates to ${TARGET}:/opt/vaultwarden/infrastructure/templates/"
 "${SSH_BASE[@]}" "$TARGET" "mkdir -p /opt/vaultwarden/infrastructure/templates"
 rsync -avz --delete \
   -e "$RSYNC_E" \
   "${TEMPLATES}/" "${TARGET}:/opt/vaultwarden/infrastructure/templates/"
+
+echo "Syncing Caddy Docker build context to ${TARGET}:/opt/vaultwarden/docker/caddy/"
+"${SSH_BASE[@]}" "$TARGET" "mkdir -p /opt/vaultwarden/docker/caddy"
+rsync -avz --delete \
+  -e "$RSYNC_E" \
+  "${DOCKER_CADDY}/" "${TARGET}:/opt/vaultwarden/docker/caddy/"
 
 echo "Generating config and starting containers on VM..."
 "${SSH_BASE[@]}" "$TARGET" bash -s -- "$DOMAIN" "$DOMAIN_NAME" <<'REMOTE'
@@ -90,15 +101,18 @@ sudo chown "$(id -un):$(id -gn)" caddy
 sed "s|{{DOMAIN_NAME}}|${DOMAIN_NAME}|g" infrastructure/templates/Caddyfile.template > caddy/Caddyfile
 
 if command -v docker-compose >/dev/null 2>&1; then
-  docker-compose pull
+  docker-compose pull vaultwarden watchtower 2>/dev/null || docker-compose pull || true
+  docker-compose build caddy
   docker-compose up -d
   docker-compose ps
 elif [[ -x /usr/local/bin/docker-compose ]]; then
-  /usr/local/bin/docker-compose pull
+  /usr/local/bin/docker-compose pull vaultwarden watchtower 2>/dev/null || /usr/local/bin/docker-compose pull || true
+  /usr/local/bin/docker-compose build caddy
   /usr/local/bin/docker-compose up -d
   /usr/local/bin/docker-compose ps
 elif docker compose version >/dev/null 2>&1; then
-  docker compose pull
+  docker compose pull vaultwarden watchtower 2>/dev/null || true
+  docker compose build caddy
   docker compose up -d
   docker compose ps
 else
