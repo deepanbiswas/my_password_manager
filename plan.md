@@ -138,6 +138,14 @@ This checklist supports two deployment approaches:
 
 **Note**: For a Test-Driven Infrastructure (TDI) approach with iterative verification, see [auto_deploy_iterations.md](auto_deploy_iterations.md). This guide provides step-by-step iterations with verification scripts for each deployment phase.
 
+**TDI progress** (see [auto_deploy_iterations.md](auto_deploy_iterations.md)):
+
+- [X] **Iteration 1** — Infrastructure foundation (`terraform apply`, `iterations/iteration-1-infrastructure/verify.sh`)
+- [X] **Iteration 2** — CI/CD (GitHub Actions workflows, secrets, pipeline)
+- [X] **Iteration 3** — Core services on the VM (`deploy-to-vm.sh` / pipeline deploy, `iterations/iteration-3-services/verify.sh`)
+- [ ] **Iteration 4** — Reverse proxy & SSL (next)
+- [ ] **Iterations 5–7** — Security hardening, backup system, monitoring & automation
+
 ### Step 1: Terraform Setup
 
 **Estimated Time**: 30-45 minutes
@@ -217,15 +225,15 @@ This checklist supports two deployment approaches:
 - [X] *Create pipeline configuration - Follow instructions in [CI/CD Pipelines Guide](docs/cicd-pipelines.md)*
   - Create `.github/workflows/deploy.yml` for GitHub Actions (or `azure-pipelines.yml` for Azure DevOps)
   - Follow workflow structure and step instructions from the guide
-- [ ] Configure GitHub Secrets (or Azure DevOps variables):
-  - [ ] `AZURE_SUBSCRIPTION_ID`
-  - [ ] `AZURE_CLIENT_ID`
-  - [ ] `AZURE_CLIENT_SECRET`
-  - [ ] `AZURE_TENANT_ID`
-  - [ ] `AZURE_CREDENTIALS`
-  - [ ] `DOMAIN`
-  - [ ] `SSH_PRIVATE_KEY`
-  - [ ] `VM_USERNAME`
+- [X] Configure GitHub Secrets (or Azure DevOps variables):
+  - [X] `AZURE_SUBSCRIPTION_ID`
+  - [X] `AZURE_CLIENT_ID`
+  - [X] `AZURE_CLIENT_SECRET`
+  - [X] `AZURE_TENANT_ID`
+  - [X] `AZURE_CREDENTIALS`
+  - [X] `DOMAIN`
+  - [X] `SSH_PRIVATE_KEY`
+  - [X] `VM_USERNAME`
 - [X] *Push code to trigger pipeline*
 - [X] *Monitor pipeline execution*
 
@@ -235,29 +243,29 @@ This checklist supports two deployment approaches:
 
 **Estimated Time**: 15-20 minutes (DNS propagation: 5-15 minutes, Rclone config: 5 minutes)
 
-- [ ] Get VM public IP from Terraform output: `terraform output vm_public_ip`
-- [ ] **Configure DNS**: Follow [DNS Configuration](#dns-configuration) steps in Common Configuration Steps
+- [X] Get VM public IP from Terraform output: `terraform output vm_public_ip`
+- [X] **Configure DNS**: Follow [DNS Configuration](#dns-configuration) steps in Common Configuration Steps
   - **Important**: DNS must be configured **immediately after Terraform apply** and **before** CI/CD pipeline runs
-  - Use the VM IP from step above
+  - Use the VM IP from step above (or use the Azure public IP FQDN from Terraform if you are not using a custom domain yet)
 - [ ] **Configure Rclone**: Follow [Rclone Configuration](#rclone-configuration) steps in Common Configuration Steps
-  - **Important**: Rclone must be configured **before** CI/CD pipeline can deploy backup automation
-  - The CI/CD pipeline will fail if Rclone is not configured when it tries to deploy backup scripts
-- [ ] Push code to trigger CI/CD pipeline (or wait for automatic trigger)
-- [ ] Monitor pipeline execution - it will automatically:
-  - Generate `.env` file with secrets (admin token, encryption key)
-  - Create `docker-compose.yml` and `caddy/Caddyfile`
-  - Deploy backup and health check scripts
-  - Set up crontab entries
-  - Start all services
+  - **Important**: Rclone must be configured **before** automated backup/cron deployment (planned in later TDI iterations; see [Iteration 6](auto_deploy_iterations.md#iteration-6-backup-system))
+  - Until then, backup scripts are not required for core service bring-up
+- [X] Push code to trigger CI/CD pipeline (or wait for automatic trigger)
+- [X] Monitor pipeline / deploy — completed for **core services** (TDI iteration 3):
+  - [X] Generate `.env` file with secrets (admin token, encryption key)
+  - [X] Create `docker-compose.yml` and `caddy/Caddyfile`
+  - [ ] Install backup and health check scripts under `/opt/vaultwarden/scripts` and **crontab** (deferred: align with [Iteration 6](auto_deploy_iterations.md#iteration-6-backup-system) / [Iteration 7](auto_deploy_iterations.md#iteration-7-monitoring--automation); templates are available under `infrastructure/templates/` on the VM)
+  - [X] Start all services (Vaultwarden, Caddy, Watchtower)
 - [ ] **If pipeline fails**: See [Rollback Procedures](#rollback-procedures) and [Troubleshooting Guide](docs/troubleshooting.md)
 
 ### Step 4: Verification & Cost Monitoring
 
 **Estimated Time**: 20-30 minutes
 
-- [ ] Verify CI/CD pipeline completed successfully (check GitHub Actions)
+- [X] Verify CI/CD pipeline completed successfully (check GitHub Actions)
   - **Troubleshooting**: If pipeline failed, see [Troubleshooting Guide - CI/CD Issues](docs/troubleshooting.md#cicd-issues)
-- [ ] **Post-Deployment Verification**: Follow [Post-Deployment Verification](#post-deployment-verification) steps in Common Configuration Steps
+- [X] **Core stack verification (TDI)**: `iterations/iteration-3-services/verify.sh` run from `infrastructure/terraform` exits **0** (containers, compose, network, `.env` permissions)
+- [ ] **Post-Deployment Verification** (full manual checklist): Follow [Post-Deployment Verification](#post-deployment-verification) in Common Configuration Steps (admin account, disable signups, client tests, HTTPS spot-checks, etc.)
 - [ ] **Cost Monitoring Setup**: Navigate to Azure Portal → Cost Management + Billing
   - [ ] Create budget alert at ₹3,750 (89% of monthly credits) - early warning
   - [ ] Create critical alert at ₹4,100 (98% of monthly credits) - immediate action needed
@@ -1030,12 +1038,12 @@ These steps are shared between both automated and manual deployment methods. Ref
 - Caddy requires DNS to be properly configured to obtain SSL certificates from Let's Encrypt
 - If DNS is not configured, SSL certificate acquisition will fail
 
-- [ ] Get VM public IP address (you should have this from your deployment step)
-- [ ] **Update DNS A record to point to VM IP** (do this immediately)
-- [ ] Wait for DNS propagation (check: `nslookup your-domain.com`)
+- [X] Get VM public IP address (you should have this from your deployment step)
+- [X] **Point hostname at the VM** — either **update DNS A record** for your custom domain to the VM IP, **or** use the Azure public IP **FQDN** from Terraform output (no custom DNS) for HTTPS
+- [X] Wait for DNS propagation (check: `nslookup your-domain.com` or your Azure FQDN)
   - **Troubleshooting**: If DNS doesn't resolve, see [Troubleshooting Guide - DNS Issues](docs/troubleshooting.md#dns-issues)
-- [ ] Verify DNS: `dig your-domain.com` or `nslookup your-domain.com`
-- [ ] Verify DNS points to correct IP: `dig +short your-domain.com`
+- [X] Verify DNS: `dig your-domain.com` or `nslookup your-domain.com` (or FQDN)
+- [X] Verify DNS points to correct IP: `dig +short your-domain.com`
 
 ### Rclone Configuration
 
