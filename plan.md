@@ -227,10 +227,10 @@ This checklist supports two deployment approaches:
   - Follow workflow structure and step instructions from the guide
 - [X] Configure GitHub Secrets (or Azure DevOps variables):
   - [X] `AZURE_SUBSCRIPTION_ID`
-  - [] `AZURE_CLIENT_ID`
-  - [] `AZURE_CLIENT_SECRET`
+  - [X] `AZURE_CLIENT_ID`
+  - [X] `AZURE_CLIENT_SECRET`
   - [X] `AZURE_TENANT_ID`
-  - [] `AZURE_CREDENTIALS`
+  - [X] `AZURE_CREDENTIALS`
   - [X] `DOMAIN`
   - [X] `SSH_PRIVATE_KEY`
   - [X] `VM_USERNAME`
@@ -256,6 +256,7 @@ This checklist supports two deployment approaches:
   - [X] Create `docker-compose.yml` and `caddy/Caddyfile`
   - [ ] Install backup and health check scripts under `/opt/vaultwarden/scripts` and **crontab** (deferred: align with [Iteration 6](auto_deploy_iterations.md#iteration-6-backup-system) / [Iteration 7](auto_deploy_iterations.md#iteration-7-monitoring--automation); templates are available under `infrastructure/templates/` on the VM)
   - [X] Start all services (Vaultwarden, Caddy, Watchtower)
+- [X] **SSL / HTTPS (TDI iteration 4):** Run `../../iterations/iteration-4-ssl/verify.sh` from `infrastructure/terraform` — exit **0** (DNS → VM IP, Let's Encrypt via Caddy, HTTPS, HTTP→HTTPS redirect, TLS 1.2+, HSTS / `X-Frame-Options` / CSP). See [Iteration 4](auto_deploy_iterations.md#iteration-4-reverse-proxy--ssl-configuration).
 - [ ] **If pipeline fails**: See [Rollback Procedures](#rollback-procedures) and [Troubleshooting Guide](docs/troubleshooting.md)
 
 ### Step 4: Verification & Cost Monitoring
@@ -264,8 +265,9 @@ This checklist supports two deployment approaches:
 
 - [X] Verify CI/CD pipeline completed successfully (check GitHub Actions)
   - **Troubleshooting**: If pipeline failed, see [Troubleshooting Guide - CI/CD Issues](docs/troubleshooting.md#cicd-issues)
-- [X] **Core stack verification (TDI)**: `iterations/iteration-3-services/verify.sh` run from `infrastructure/terraform` exits **0** (containers, compose, network, `.env` permissions)
-- [ ] **Post-Deployment Verification** (full manual checklist): Follow [Post-Deployment Verification](#post-deployment-verification) in Common Configuration Steps (admin account, disable signups, client tests, HTTPS spot-checks, etc.)
+- [X] **Core stack verification (TDI iteration 3):** `iterations/iteration-3-services/verify.sh` run from `infrastructure/terraform` exits **0** (containers, compose, network, `.env` permissions)
+- [X] **SSL / HTTPS verification (TDI iteration 4):** `iterations/iteration-4-ssl/verify.sh` exits **0** (DNS, HTTPS, TLS, security headers; same working directory as above)
+- [ ] **Post-Deployment Verification** (remaining manual checklist): Follow [Post-Deployment Verification](#post-deployment-verification) in Common Configuration Steps (admin account, disable signups, Bitwarden client tests, etc.; HTTPS/TLS header checks are covered by iteration 4 `verify.sh`)
 - [ ] **Cost Monitoring Setup**: Navigate to Azure Portal → Cost Management + Billing
   - [ ] Create budget alert at ₹3,750 (89% of monthly credits) - early warning
   - [ ] Create critical alert at ₹4,100 (98% of monthly credits) - immediate action needed
@@ -1097,10 +1099,10 @@ These steps are shared between both automated and manual deployment methods. Ref
 **Service Verification:**
 - [ ] Access admin panel: `https://your-domain.com/admin`
   - **Troubleshooting**: If admin panel is inaccessible, see [Troubleshooting Guide - Access Issues](docs/troubleshooting.md#access-issues)
-- [ ] Verify HTTPS working (green lock icon in browser)
-- [ ] Verify SSL certificate: `openssl s_client -connect your-domain.com:443 -servername your-domain.com | grep "Verify return code"`
-  - Should show "Verify return code: 0 (ok)"
-- [ ] Check certificate expiration: `echo | openssl s_client -connect your-domain.com:443 -servername your-domain.com 2>/dev/null | openssl x509 -noout -dates`
+- [X] Verify HTTPS working (green lock in browser optional; **TDI iteration 4** `verify.sh` checks HTTPS and TLS)
+- [X] Verify SSL certificate: `openssl s_client -connect your-domain.com:443 -servername your-domain.com | grep "Verify return code"`
+  - Should show "Verify return code: 0 (ok)" *(validated in iteration 4 automated checks; re-run on your hostname if needed)*
+- [X] Check certificate expiration: `echo | openssl s_client -connect your-domain.com:443 -servername your-domain.com 2>/dev/null | openssl x509 -noout -dates`
 - [ ] **Create first user account via web UI** (signups are enabled by default):
   - Navigate to `https://your-domain.com`
   - Click "Create Account" and register your master account
