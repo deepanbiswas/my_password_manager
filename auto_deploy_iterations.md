@@ -13,10 +13,10 @@
 - [Iteration 1: Infrastructure Foundation](#iteration-1-infrastructure-foundation)
 - [Iteration 2: CI/CD Pipeline Setup](#iteration-2-cicd-pipeline-setup)
 - [Iteration 3: Core Services Deployment](#iteration-3-core-services-deployment)
-- [Iteration 4: Reverse Proxy & SSL Configuration](#iteration-4-reverse-proxy-ssl-configuration)
+- [Iteration 4: Reverse Proxy & SSL Configuration](#iteration-4-reverse-proxy--ssl-configuration)
 - [Iteration 5: Security Hardening](#iteration-5-security-hardening)
 - [Iteration 6: Backup System](#iteration-6-backup-system)
-- [Iteration 7: Monitoring & Automation](#iteration-7-monitoring-automation)
+- [Iteration 7: Monitoring & Automation](#iteration-7-monitoring--automation)
 
 **Closing**
 
