@@ -24,7 +24,7 @@ Deploy **`backup.sh`** from [`backup.sh.template`](../../infrastructure/template
 ## Deliverables
 
 1. **[`deploy-to-vm.sh`](../../infrastructure/scripts/deploy-to-vm.sh)** — `mkdir` `scripts` / `backups`, `cp` template, `chmod +x`, crontab line sourcing `.env` before `backup.sh`.
-2. **`verify.sh`** — Checks per [auto_deploy_iterations.md](../../auto_deploy_iterations.md#iteration-6-backup-system) (script, rclone, docker exec, `.env` key, test run, `gdrive:vaultwarden-backups/`, crontab, manifest).
+2. **`verify.sh`** — Checks per [auto_deploy_iterations.md](../../auto_deploy_iterations.md#iteration-6-backup-system) (script, rclone, host `sqlite3` `.backup`, `.env` key, test run, `gdrive:vaultwarden-backups/`, crontab, manifest).
 3. **`rollback.sh`** — Confirm `yes`, strip crontab line, remove `backup.sh`.
 
 ---
@@ -33,4 +33,4 @@ Deploy **`backup.sh`** from [`backup.sh.template`](../../infrastructure/template
 
 - [x] `deploy-to-vm.sh` installs backup + cron
 - [x] `verify.sh` / `rollback.sh`
-- [ ] Merge PR; run `verify.sh` on VM after deploy (requires **rclone `gdrive`**)
+- [x] Merge PR; run `verify.sh` on VM after deploy (requires **rclone `gdrive`**)

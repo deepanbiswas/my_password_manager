@@ -885,15 +885,15 @@ This section contains requirements for all template files and scripts referenced
 
 **Requirements** (per spec.md Section 5.1.2):
 - **SQLite Database Backup**:
-  - **Critical**: Must execute `.backup` command inside the Vaultwarden container via `docker exec` to avoid permission clashes and database locks
-  - Command pattern: `docker exec vaultwarden sqlite3 /data/db.sqlite3 ".backup /data/db_backup.sqlite3"`
-  - Backup file created inside container at `/data/db_backup.sqlite3`, then copied to host for archiving
-  - Ensures backup runs with correct user permissions (UID 1000) and avoids database locking issues
+  - Use the **`sqlite3` CLI on the host** (installed via cloud-init / OS packages) against the **bind-mounted** database file. The `vaultwarden/server` image does **not** ship `sqlite3`, so `docker exec … sqlite3` is not reliable.
+  - Default host path (matches Compose volume `./vaultwarden/data:/data`): `/opt/vaultwarden/vaultwarden/data/db.sqlite3`
+  - Command pattern: `sqlite3 /opt/vaultwarden/vaultwarden/data/db.sqlite3 ".backup /path/to/staging/db_backup.sqlite3"` (staging directory under `/opt/vaultwarden/backups/` as implemented in the template)
+  - The SQLite backup API used by `.backup` is appropriate for a live database file on the host while Vaultwarden is running
 - **Attachments Archive**: Archive attachments directory to tar.gz
 - **Backup Manifest**: Create manifest file with metadata (backup timestamp, file sizes, checksums, etc.)
 - **Encryption**: Encrypt backup using GPG (AES-256) with passphrase or key-based encryption
 - **Upload**: Upload encrypted backup to Google Drive via Rclone
-- **Cleanup**: Remove local temporary files after successful upload (including temporary backup file inside container)
+- **Cleanup**: Remove local staging files and encrypted artifact after successful upload (per template)
 - **Retention Policy**: Remove old backups older than retention period (30 days default)
 
 **Usage**: Script is copied from template and executed via crontab for nightly backups.
@@ -1150,18 +1150,20 @@ These steps are shared between both automated and manual deployment methods. Ref
 
 **⚠️ Monthly Task**: Perform SQLite maintenance to optimize database performance and reclaim space.
 
-**SQLite Maintenance Operations:**
+**SQLite Maintenance Operations** (use host `sqlite3` on the bind-mounted DB; same path as backups):
+
 - [ ] Navigate to deployment directory: `cd /opt/vaultwarden`
-- [ ] Vacuum database (reclaim space): `docker exec vaultwarden sqlite3 /data/db.sqlite3 "VACUUM;"`
-- [ ] Analyze database (update statistics): `docker exec vaultwarden sqlite3 /data/db.sqlite3 "ANALYZE;"`
-- [ ] Integrity check: `docker exec vaultwarden sqlite3 /data/db.sqlite3 "PRAGMA integrity_check;"`
+- [ ] Vacuum database (reclaim space): `sqlite3 vaultwarden/data/db.sqlite3 "VACUUM;"` — if you see a database lock error, stop Vaultwarden first: `docker compose stop vaultwarden`, run `VACUUM`, then `docker compose start vaultwarden`
+- [ ] Analyze database (update statistics): `sqlite3 vaultwarden/data/db.sqlite3 "ANALYZE;"`
+- [ ] Integrity check: `sqlite3 vaultwarden/data/db.sqlite3 "PRAGMA integrity_check;"`
   - Should return "ok" if database is healthy
 
 **Automated Monthly Maintenance (Optional):**
 - [ ] Add to crontab (first day of month at 3 AM): `crontab -e`
   ```bash
-  0 3 1 * * docker exec vaultwarden sqlite3 /data/db.sqlite3 "VACUUM; ANALYZE;"
+  0 3 1 * * cd /opt/vaultwarden && sqlite3 vaultwarden/data/db.sqlite3 "VACUUM; ANALYZE;"
   ```
+  Prefer running `VACUUM` during a maintenance window with Vaultwarden stopped if you hit locking issues; `ANALYZE` is often safe while the app runs.
 
 **Note**: See [spec.md](spec.md) Section 6.3.3 for database maintenance requirements.
 

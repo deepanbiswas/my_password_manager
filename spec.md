@@ -614,15 +614,15 @@ For detailed information on attachments architecture, encryption, size limits, a
 #### 5.1.2 Backup Process Requirements
 
 The backup process must:
-- **Create SQLite database backup using `.backup` command executed inside the Vaultwarden container**:
-  - Backup must run via `docker exec` inside the container to avoid permission clashes and database locks
-  - The backup command runs with the container's non-root user (UID 1000) to ensure proper file permissions
-  - Example: `docker exec vaultwarden sqlite3 /data/db.sqlite3 ".backup /data/db_backup.sqlite3"`
+- **Create SQLite database backup using the host `sqlite3` CLI and `.backup`** against the bind-mounted database file (see Section 3.1.3). The official Vaultwarden image does not ship the `sqlite3` binary, so `docker exec … sqlite3` inside the container is not a reliable approach.
+  - Example host path (default Compose layout): `/opt/vaultwarden/vaultwarden/data/db.sqlite3`
+  - Example: `sqlite3 /opt/vaultwarden/vaultwarden/data/db.sqlite3 ".backup /path/to/staging/db_backup.sqlite3"`
+  - The SQLite backup API used by `.backup` is suitable while Vaultwarden is running and holding the database file on the shared volume
 - Archive attachments directory
 - Create backup manifest with metadata
 - Encrypt backup using GPG (AES-256)
 - Upload encrypted backup to Google Drive via Rclone
-- Clean up local temporary files after successful upload (including temporary backup file inside container)
+- Clean up local temporary files after successful upload (staging and encrypted artifact per script)
 - Apply retention policy to remove old backups
 
 For backup script implementation, see [plan.md](plan.md).
@@ -830,17 +830,18 @@ For detailed monitoring and cleanup procedures, see [plan.md](plan.md) and opera
 
 #### 6.3.3 Database Maintenance
 
-**SQLite Maintenance:**
+**SQLite Maintenance** (host `sqlite3` on the bind-mounted database; see Section 3.1.3):
 
 ```bash
-# Vacuum database (reclaim space)
-docker exec vaultwarden sqlite3 /data/db.sqlite3 "VACUUM;"
+cd /opt/vaultwarden
+# Vacuum database (reclaim space) — stop Vaultwarden first if you see a lock error
+sqlite3 vaultwarden/data/db.sqlite3 "VACUUM;"
 
 # Analyze database (update statistics)
-docker exec vaultwarden sqlite3 /data/db.sqlite3 "ANALYZE;"
+sqlite3 vaultwarden/data/db.sqlite3 "ANALYZE;"
 
 # Integrity check
-docker exec vaultwarden sqlite3 /data/db.sqlite3 "PRAGMA integrity_check;"
+sqlite3 vaultwarden/data/db.sqlite3 "PRAGMA integrity_check;"
 ```
 
 **Monthly Maintenance Task:**
@@ -848,7 +849,7 @@ docker exec vaultwarden sqlite3 /data/db.sqlite3 "PRAGMA integrity_check;"
 Add to crontab (first day of month):
 
 ```bash
-0 3 1 * * docker exec vaultwarden sqlite3 /data/db.sqlite3 "VACUUM; ANALYZE;"
+0 3 1 * * cd /opt/vaultwarden && sqlite3 vaultwarden/data/db.sqlite3 "VACUUM; ANALYZE;"
 ```
 
 ### 6.4 Operational Procedures

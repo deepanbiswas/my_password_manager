@@ -139,17 +139,18 @@ docker logs caddy
 **Solutions:**
 
 ```bash
-# Check database integrity
-docker exec vaultwarden sqlite3 /data/db.sqlite3 "PRAGMA integrity_check;"
+cd /opt/vaultwarden
+# Host sqlite3 on bind-mounted DB (image has no sqlite3 binary)
+sqlite3 vaultwarden/data/db.sqlite3 "PRAGMA integrity_check;"
 
-# Vacuum database
-docker exec vaultwarden sqlite3 /data/db.sqlite3 "VACUUM;"
+# Vacuum database (stop vaultwarden first if you get a database lock)
+sqlite3 vaultwarden/data/db.sqlite3 "VACUUM;"
 
 # Check database size
-docker exec vaultwarden ls -lh /data/db.sqlite3
+ls -lh vaultwarden/data/db.sqlite3
 
 # Backup before repair
-docker exec vaultwarden sqlite3 /data/db.sqlite3 ".backup /data/db.sqlite3.backup"
+sqlite3 vaultwarden/data/db.sqlite3 ".backup /opt/vaultwarden/backups/db.repair.backup.sqlite3"
 ```
 
 ## Emergency Procedures
@@ -226,8 +227,8 @@ curl http://localhost:80
 # External connection
 curl https://your-domain.com
 
-# Database connection
-docker exec vaultwarden sqlite3 /data/db.sqlite3 "SELECT COUNT(*) FROM users;"
+# Database query (host sqlite3 on bind-mounted file)
+cd /opt/vaultwarden && sqlite3 vaultwarden/data/db.sqlite3 "SELECT COUNT(*) FROM users;"
 ```
 
 ### Step 4: Check Resources
@@ -281,8 +282,8 @@ tail -f /var/log/vaultwarden-backup.log
 # Check container resources
 docker stats
 
-# Check database size
-docker exec vaultwarden sqlite3 /data/db.sqlite3 "SELECT page_count * page_size / 1024 / 1024 AS size_mb FROM pragma_page_count(), pragma_page_size();"
+# Check database size (host sqlite3)
+cd /opt/vaultwarden && sqlite3 vaultwarden/data/db.sqlite3 "SELECT page_count * page_size / 1024 / 1024 AS size_mb FROM pragma_page_count(), pragma_page_size();"
 
 # Check disk I/O
 iostat -x 1
