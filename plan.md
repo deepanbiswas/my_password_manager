@@ -849,7 +849,7 @@ This section contains requirements for all template files and scripts referenced
   - Label: `com.centurylinklabs.watchtower.enable=true`
   - Resource limits: 0.5 CPU cores, 512MB RAM
 - **Watchtower Service**:
-  - Image: `containrrr/watchtower:latest`
+  - Image: `ghcr.io/nicholas-fedor/watchtower:latest`
   - Container name: `watchtower`
   - Restart policy: `unless-stopped`
   - Volumes: Docker socket
