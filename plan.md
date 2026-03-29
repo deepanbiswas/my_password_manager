@@ -145,7 +145,7 @@ This checklist supports two deployment approaches:
 - [X] **Iteration 3** — Core services on the VM (`deploy-to-vm.sh` / pipeline deploy, `iterations/iteration-3-services/verify.sh`)
 - [X] **Iteration 4** — Reverse proxy & SSL (`iterations/iteration-4-ssl/verify.sh`, DNS + HTTPS + TLS + headers)
 - [X] **Iteration 5** — Security hardening (`iterations/iteration-5-security/verify.sh`, signups workflow, UFW, Caddy rate limit, compose limits)
-- [ ] **Iterations 6–7** — Backup system, monitoring & automation
+- [X] **Iterations 6–7** — Backup system, monitoring & automation (`deploy-to-vm.sh`, iteration 6/7 `verify.sh` exit **0**)
 
 ### Step 1: Terraform Setup
 
@@ -248,14 +248,13 @@ This checklist supports two deployment approaches:
 - [X] **Configure DNS**: Follow [DNS Configuration](#dns-configuration) steps in Common Configuration Steps
   - **Important**: DNS must be configured **immediately after Terraform apply** and **before** CI/CD pipeline runs
   - Use the VM IP from step above (or use the Azure public IP FQDN from Terraform if you are not using a custom domain yet)
-- [ ] **Configure Rclone**: Follow [Rclone Configuration](#rclone-configuration) steps in Common Configuration Steps
-  - **Important**: Rclone must be configured **before** automated backup/cron deployment (planned in later TDI iterations; see [Iteration 6](auto_deploy_iterations.md#iteration-6-backup-system))
-  - Until then, backup scripts are not required for core service bring-up
+- [X] **Configure Rclone**: Follow [Rclone Configuration](#rclone-configuration) steps in Common Configuration Steps (required before **Iteration 6** backups; remote `gdrive` + `vaultwarden-backups/`)
+  - **Important**: Rclone must be configured **before** automated backup/cron deployment ([Iteration 6](auto_deploy_iterations.md#iteration-6-backup-system))
 - [X] Push code to trigger CI/CD pipeline (or wait for automatic trigger)
 - [X] Monitor pipeline / deploy — completed for **core services** (TDI iteration 3):
   - [X] Generate `.env` file with secrets (admin token, encryption key)
   - [X] Create `docker-compose.yml` and `caddy/Caddyfile`
-  - [ ] Install backup and health check scripts under `/opt/vaultwarden/scripts` and **crontab** (deferred: align with [Iteration 6](auto_deploy_iterations.md#iteration-6-backup-system) / [Iteration 7](auto_deploy_iterations.md#iteration-7-monitoring--automation); templates are available under `infrastructure/templates/` on the VM)
+  - [X] Install backup and health check scripts under `/opt/vaultwarden/scripts` and **crontab** ([Iteration 6](auto_deploy_iterations.md#iteration-6-backup-system) / [Iteration 7](auto_deploy_iterations.md#iteration-7-monitoring--automation); applied by [`deploy-to-vm.sh`](infrastructure/scripts/deploy-to-vm.sh))
   - [X] Start all services (Vaultwarden, Caddy, Watchtower)
 - [X] **SSL / HTTPS (TDI iteration 4):** Run `../../iterations/iteration-4-ssl/verify.sh` from `infrastructure/terraform` — exit **0** (DNS → VM IP, Let's Encrypt via Caddy, HTTPS, HTTP→HTTPS redirect, TLS 1.2+, HSTS / `X-Frame-Options` / CSP). See [Iteration 4](auto_deploy_iterations.md#iteration-4-reverse-proxy--ssl-configuration).
 - [X] **Security hardening (TDI iteration 5):** Deploy includes custom Caddy image (`infrastructure/docker/caddy`) with rate limiting; run `../../iterations/iteration-5-security/verify.sh` — exit **0** (signups disabled after account creation, UFW, rate limits, limits, `.env` 600, non-root). See [Iteration 5](auto_deploy_iterations.md#iteration-5-security-hardening).
