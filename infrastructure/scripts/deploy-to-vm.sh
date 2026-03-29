@@ -124,8 +124,9 @@ fi
 mkdir -p scripts backups
 cp -f infrastructure/templates/backup.sh.template scripts/backup.sh
 chmod +x scripts/backup.sh
-if ! crontab -l 2>/dev/null | grep -qF '/opt/vaultwarden/scripts/backup.sh'; then
-  (crontab -l 2>/dev/null; echo '0 2 * * * cd /opt/vaultwarden && set -a && . ./.env && set +a && /opt/vaultwarden/scripts/backup.sh >> /var/log/vaultwarden-backup.log 2>&1') | crontab -
+# crontab -l fails with no user crontab; avoid set -e killing the subshell before echo
+if ! { crontab -l 2>/dev/null || true; } | grep -qF '/opt/vaultwarden/scripts/backup.sh'; then
+  ({ crontab -l 2>/dev/null || true; echo '0 2 * * * cd /opt/vaultwarden && set -a && . ./.env && set +a && /opt/vaultwarden/scripts/backup.sh >> /var/log/vaultwarden-backup.log 2>&1'; }) | crontab -
 fi
 REMOTE
 
