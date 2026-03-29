@@ -1,13 +1,38 @@
 #!/usr/bin/env bash
 # Post-deploy checks: containers up, HTTP response (runner or VM perspective).
 # Required env: VM_PUBLIC_IP, VM_USERNAME, DOMAIN
+# Optional: SSH_IDENTITY_FILE — same as deploy-to-vm.sh (default ~/.ssh/id_rsa_vaultwarden).
 set -euo pipefail
 
 : "${VM_PUBLIC_IP:?Set VM_PUBLIC_IP}"
 : "${VM_USERNAME:?Set VM_USERNAME}"
 : "${DOMAIN:?Set DOMAIN}"
 
-SSH_BASE=(ssh -o BatchMode=yes -o ConnectTimeout=30 -o StrictHostKeyChecking=accept-new)
+resolve_identity() {
+  local f="${SSH_IDENTITY_FILE:-}"
+  if [[ -n "$f" ]]; then
+    f="${f/#\~/${HOME}}"
+    [[ -f "$f" ]] || { echo "SSH_IDENTITY_FILE not found: $f" >&2; exit 1; }
+    echo "$f"
+    return 0
+  fi
+  local def="${HOME}/.ssh/id_rsa_vaultwarden"
+  if [[ -f "$def" ]]; then
+    echo "$def"
+    return 0
+  fi
+  return 1
+}
+
+SSH_IDENTITY=()
+if id_path="$(resolve_identity)"; then
+  SSH_IDENTITY=(-i "$id_path")
+elif [[ -z "${GITHUB_ACTIONS:-}" ]]; then
+  echo "No SSH private key: set SSH_IDENTITY_FILE or ~/.ssh/id_rsa_vaultwarden." >&2
+  exit 1
+fi
+
+SSH_BASE=(ssh "${SSH_IDENTITY[@]}" -o BatchMode=yes -o ConnectTimeout=30 -o StrictHostKeyChecking=accept-new)
 TARGET="${VM_USERNAME}@${VM_PUBLIC_IP}"
 DOMAIN_NAME="${DOMAIN#https://}"
 DOMAIN_NAME="${DOMAIN_NAME#http://}"

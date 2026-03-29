@@ -2,6 +2,8 @@
 # Deploy templates and start Vaultwarden stack on the VM (CI or local with SSH).
 # Required env: VM_PUBLIC_IP, VM_USERNAME, DOMAIN (full URL, e.g. https://host/)
 # Optional: REPO_ROOT (defaults from script location). Backup/cron deferred to Iteration 6.
+# Optional: SSH_IDENTITY_FILE — private key path (default: ~/.ssh/id_rsa_vaultwarden if present, same as iterations/common/lib.sh / terraform.tfvars).
+#          On GitHub Actions, ssh-agent usually has the key; no file needed.
 set -euo pipefail
 
 : "${VM_PUBLIC_IP:?Set VM_PUBLIC_IP}"
@@ -11,7 +13,40 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="${REPO_ROOT:-$(cd "${SCRIPT_DIR}/../.." && pwd)}"
 TEMPLATES="${REPO_ROOT}/infrastructure/templates"
-SSH_BASE=(ssh -o BatchMode=yes -o ConnectTimeout=30 -o StrictHostKeyChecking=accept-new)
+
+resolve_identity() {
+  local f="${SSH_IDENTITY_FILE:-}"
+  if [[ -n "$f" ]]; then
+    f="${f/#\~/${HOME}}"
+    if [[ -f "$f" ]]; then
+      echo "$f"
+      return 0
+    fi
+    echo "SSH_IDENTITY_FILE not found: $f" >&2
+    exit 1
+  fi
+  local def="${HOME}/.ssh/id_rsa_vaultwarden"
+  if [[ -f "$def" ]]; then
+    echo "$def"
+    return 0
+  fi
+  return 1
+}
+
+SSH_IDENTITY=()
+if id_path="$(resolve_identity)"; then
+  SSH_IDENTITY=(-i "$id_path")
+elif [[ -z "${GITHUB_ACTIONS:-}" ]]; then
+  echo "No SSH private key: set SSH_IDENTITY_FILE or place key at ~/.ssh/id_rsa_vaultwarden (see terraform.tfvars ssh_public_key_path)." >&2
+  exit 1
+fi
+
+SSH_BASE=(ssh "${SSH_IDENTITY[@]}" -o BatchMode=yes -o ConnectTimeout=30 -o StrictHostKeyChecking=accept-new)
+if [[ ${#SSH_IDENTITY[@]} -gt 0 ]]; then
+  RSYNC_E="ssh -i $(printf '%q' "${SSH_IDENTITY[1]}") -o BatchMode=yes -o ConnectTimeout=30 -o StrictHostKeyChecking=accept-new"
+else
+  RSYNC_E="ssh -o BatchMode=yes -o ConnectTimeout=30 -o StrictHostKeyChecking=accept-new"
+fi
 TARGET="${VM_USERNAME}@${VM_PUBLIC_IP}"
 
 DOMAIN_NAME="${DOMAIN#https://}"
@@ -25,7 +60,7 @@ fi
 echo "Syncing templates to ${TARGET}:/opt/vaultwarden/infrastructure/templates/"
 "${SSH_BASE[@]}" "$TARGET" "mkdir -p /opt/vaultwarden/infrastructure/templates"
 rsync -avz --delete \
-  -e "ssh -o BatchMode=yes -o ConnectTimeout=30 -o StrictHostKeyChecking=accept-new" \
+  -e "$RSYNC_E" \
   "${TEMPLATES}/" "${TARGET}:/opt/vaultwarden/infrastructure/templates/"
 
 echo "Generating config and starting containers on VM..."
@@ -49,7 +84,9 @@ else
 fi
 
 sed "s|{{DOMAIN}}|${DOMAIN}|g" infrastructure/templates/docker-compose.yml.template > docker-compose.yml
-mkdir -p caddy
+# caddy/ may be root-owned from a prior Docker run; ensure it is writable for this user
+sudo mkdir -p caddy
+sudo chown "$(id -un):$(id -gn)" caddy
 sed "s|{{DOMAIN_NAME}}|${DOMAIN_NAME}|g" infrastructure/templates/Caddyfile.template > caddy/Caddyfile
 
 if command -v docker-compose >/dev/null 2>&1; then
