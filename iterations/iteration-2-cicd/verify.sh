@@ -47,11 +47,14 @@ check_contains() {
   fi
 }
 
+check_contains "deploy-config" "job deploy-config"
 check_contains "terraform-plan" "job terraform-plan"
 check_contains "terraform-apply" "job terraform-apply"
+check_contains "vm-deploy" "job vm-deploy"
+check_contains "deploy-notice" "job deploy-notice"
 
-# Required step names (auto_deploy_iterations.md)
-for step in "Checkout code" "Setup Terraform" "Configure Azure credentials" "Terraform Init" "Terraform Apply" "Get VM Public IP" "Setup SSH" "Deploy Application Configuration" "Verify Deployment"; do
+# Required step names (auto_deploy_iterations.md); terraform-apply includes light gate before deploy
+for step in "Checkout code" "Setup Terraform" "Configure Azure credentials" "Terraform Init" "Terraform Apply" "Get VM Public IP" "Setup SSH" "Light gate (verify-vm + iteration 3)" "Deploy Application Configuration" "Verify Deployment"; do
   check_contains "$step" "step: $step"
 done
 
@@ -61,7 +64,7 @@ check_contains "infrastructure/**" "paths: infrastructure/**"
 check_contains ".github/workflows/deploy.yml" "paths: deploy workflow"
 check_contains "docker-compose.yml" "paths: docker-compose.yml"
 
-for sec in AZURE_SUBSCRIPTION_ID AZURE_CLIENT_ID AZURE_CLIENT_SECRET AZURE_TENANT_ID AZURE_CREDENTIALS DOMAIN SSH_PRIVATE_KEY VM_USERNAME; do
+for sec in AZURE_SUBSCRIPTION_ID AZURE_CLIENT_ID AZURE_CLIENT_SECRET AZURE_TENANT_ID AZURE_CREDENTIALS DOMAIN SSH_PRIVATE_KEY VM_USERNAME VM_PUBLIC_IP; do
   check_contains "secrets.${sec}" "secret ${sec}"
 done
 

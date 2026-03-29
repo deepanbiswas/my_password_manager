@@ -11,8 +11,8 @@ STATUS=0
 
 print_header "$ITERATION"
 
-if ! verify_terraform_state; then
-  print_warning "Apply Terraform first (terraform init && terraform apply) in infrastructure/terraform"
+if ! verify_terraform_state_or_vm_env; then
+  print_warning "Apply Terraform first (terraform init && terraform apply) in infrastructure/terraform, or set VM_PUBLIC_IP, VM_USERNAME, and DOMAIN"
   print_footer "$ITERATION" 1
   exit 1
 fi

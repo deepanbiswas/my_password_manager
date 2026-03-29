@@ -1,8 +1,15 @@
-# Automated deployment: Terraform plan/apply on main, then SSH deploy + verify on VM.
-# See docs/cicd-pipelines.md and auto_deploy_iterations.md (Iteration 2).
+# Deploy workflow (conditional Azure + VM-only path + light skip gate).
 #
-# Requires GitHub Secrets (docs/cicd-pipelines.md): AZURE_CREDENTIALS, DOMAIN,
-# SSH_PRIVATE_KEY, VM_USERNAME, plus individual Azure IDs if not embedded in AZURE_CREDENTIALS.
+# Triggers: push to main (paths below) or workflow_dispatch.
+#
+# Modes:
+# - Full (AZURE_CREDENTIALS set): terraform-plan → terraform-apply → optional deploy-to-vm.sh
+# - VM-only (no Azure, but VM_PUBLIC_IP + VM_USERNAME + DOMAIN + SSH_PRIVATE_KEY): vm-deploy job
+# - Skipped (no Azure and incomplete VM secrets): deploy-notice exits 0 (no fake Azure login)
+#
+# Light gate (Option B): before deploy-to-vm.sh, run verify-vm-deployment.sh and
+# iterations/iteration-3-services/verify.sh. If both pass, skip deploy. Iteration 4/5 verifies
+# are not part of this gate (see docs/cicd-pipelines.md).
 
 name: Deploy
 
@@ -33,8 +40,28 @@ permissions:
   contents: read
 
 jobs:
+  # ---------------------------------------------------------------------------
+  # Config: decide which path runs (never needs Azure secrets to evaluate)
+  # ---------------------------------------------------------------------------
+  deploy-config:
+    name: deploy-config
+    runs-on: ubuntu-latest
+    outputs:
+      has_azure: ${{ steps.flags.outputs.has_azure }}
+      has_vm_secrets: ${{ steps.flags.outputs.has_vm_secrets }}
+    steps:
+      - id: flags
+        run: |
+          echo "has_azure=${{ secrets.AZURE_CREDENTIALS != '' }}" >> "$GITHUB_OUTPUT"
+          echo "has_vm_secrets=${{ secrets.VM_PUBLIC_IP != '' && secrets.VM_USERNAME != '' && secrets.DOMAIN != '' && secrets.SSH_PRIVATE_KEY != '' }}" >> "$GITHUB_OUTPUT"
+
+  # ---------------------------------------------------------------------------
+  # Iteration 1 (Terraform / Azure): plan + apply + VM deploy
+  # ---------------------------------------------------------------------------
   terraform-plan:
     name: terraform-plan
+    needs: deploy-config
+    if: needs.deploy-config.outputs.has_azure == 'true'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -97,9 +124,11 @@ jobs:
 
   terraform-apply:
     name: terraform-apply
-    runs-on: ubuntu-latest
     needs:
+      - deploy-config
       - terraform-plan
+    if: needs.deploy-config.outputs.has_azure == 'true'
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -163,7 +192,27 @@ jobs:
         with:
           ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
 
+      - name: Light gate (verify-vm + iteration 3)
+        id: light_gate
+        env:
+          VM_PUBLIC_IP: ${{ steps.vmip.outputs.public_ip }}
+          VM_USERNAME: ${{ secrets.VM_USERNAME }}
+          DOMAIN: ${{ secrets.DOMAIN }}
+          TERRAFORM_DIR: ${{ github.workspace }}/infrastructure/terraform
+          GITHUB_ACTIONS: "true"
+        run: |
+          set -euo pipefail
+          chmod +x infrastructure/scripts/verify-vm-deployment.sh
+          chmod +x iterations/iteration-3-services/verify.sh
+          if infrastructure/scripts/verify-vm-deployment.sh && \
+             iterations/iteration-3-services/verify.sh; then
+            echo "skip_deploy=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "skip_deploy=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Deploy Application Configuration
+        if: steps.light_gate.outputs.skip_deploy != 'true'
         env:
           VM_PUBLIC_IP: ${{ steps.vmip.outputs.public_ip }}
           VM_USERNAME: ${{ secrets.VM_USERNAME }}
@@ -175,6 +224,7 @@ jobs:
           infrastructure/scripts/deploy-to-vm.sh
 
       - name: Verify Deployment
+        if: steps.light_gate.outputs.skip_deploy != 'true'
         env:
           VM_PUBLIC_IP: ${{ steps.vmip.outputs.public_ip }}
           VM_USERNAME: ${{ secrets.VM_USERNAME }}
@@ -183,3 +233,75 @@ jobs:
           set -euo pipefail
           chmod +x infrastructure/scripts/verify-vm-deployment.sh
           infrastructure/scripts/verify-vm-deployment.sh
+
+  # ---------------------------------------------------------------------------
+  # VM-only path (no Azure): same light gate + optional deploy
+  # ---------------------------------------------------------------------------
+  vm-deploy:
+    name: vm-deploy
+    needs: deploy-config
+    if: needs.deploy-config.outputs.has_azure != 'true' && needs.deploy-config.outputs.has_vm_secrets == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup SSH
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+
+      - name: Light gate (verify-vm + iteration 3)
+        id: light_gate
+        env:
+          VM_PUBLIC_IP: ${{ secrets.VM_PUBLIC_IP }}
+          VM_USERNAME: ${{ secrets.VM_USERNAME }}
+          DOMAIN: ${{ secrets.DOMAIN }}
+          GITHUB_ACTIONS: "true"
+        run: |
+          set -euo pipefail
+          chmod +x infrastructure/scripts/verify-vm-deployment.sh
+          chmod +x iterations/iteration-3-services/verify.sh
+          if infrastructure/scripts/verify-vm-deployment.sh && \
+             iterations/iteration-3-services/verify.sh; then
+            echo "skip_deploy=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "skip_deploy=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Deploy Application Configuration
+        if: steps.light_gate.outputs.skip_deploy != 'true'
+        env:
+          VM_PUBLIC_IP: ${{ secrets.VM_PUBLIC_IP }}
+          VM_USERNAME: ${{ secrets.VM_USERNAME }}
+          DOMAIN: ${{ secrets.DOMAIN }}
+          REPO_ROOT: ${{ github.workspace }}
+        run: |
+          set -euo pipefail
+          chmod +x infrastructure/scripts/deploy-to-vm.sh
+          infrastructure/scripts/deploy-to-vm.sh
+
+      - name: Verify Deployment
+        if: steps.light_gate.outputs.skip_deploy != 'true'
+        env:
+          VM_PUBLIC_IP: ${{ secrets.VM_PUBLIC_IP }}
+          VM_USERNAME: ${{ secrets.VM_USERNAME }}
+          DOMAIN: ${{ secrets.DOMAIN }}
+        run: |
+          set -euo pipefail
+          chmod +x infrastructure/scripts/verify-vm-deployment.sh
+          infrastructure/scripts/verify-vm-deployment.sh
+
+  # ---------------------------------------------------------------------------
+  # Nothing to run: no Azure and VM secrets incomplete
+  # ---------------------------------------------------------------------------
+  deploy-notice:
+    name: deploy-notice
+    needs: deploy-config
+    if: needs.deploy-config.outputs.has_azure != 'true' && needs.deploy-config.outputs.has_vm_secrets != 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Skip (no Azure credentials and no full VM secret set)
+        run: |
+          echo "Deploy skipped: set AZURE_CREDENTIALS for Terraform, or set VM_PUBLIC_IP, VM_USERNAME, DOMAIN, and SSH_PRIVATE_KEY for VM-only deploy."
+          echo "See docs/cicd-pipelines.md"

@@ -24,13 +24,14 @@ CI/CD pipelines automate the deployment process, enabling one-command deployment
    - Azure credentials: `AZURE_SUBSCRIPTION_ID`, `AZURE_CLIENT_ID`, `AZURE_CLIENT_SECRET`, `AZURE_TENANT_ID`
    - Loaded from GitHub Secrets
 
-3. **Jobs**:
-   - **terraform-plan**: Plan infrastructure changes
+3. **Jobs** (see `.github/workflows/deploy.yml` for exact `if` conditions):
+   - **deploy-config**: Sets job outputs `has_azure` and `has_vm_secrets` from repository secrets (no Azure login).
+   - **terraform-plan** (runs only when `AZURE_CREDENTIALS` is set): Plan infrastructure changes
      - Checkout code
      - Setup Terraform (version 1.5.0)
      - Run `terraform init`, `terraform validate`, `terraform plan`
      - Upload plan artifact
-   - **terraform-apply**: Apply infrastructure (only on main branch)
+   - **terraform-apply** (runs only when `AZURE_CREDENTIALS` is set): Apply infrastructure
      - Checkout code
      - Setup Terraform
      - Configure Azure credentials
@@ -38,9 +39,33 @@ CI/CD pipelines automate the deployment process, enabling one-command deployment
      - Run `terraform apply`
      - Get VM public IP from Terraform output
      - Setup SSH agent with private key
-     - **Deploy Application Configuration** (see requirements below)
-     - **Verify Deployment** (see requirements below)
-     - Comment on PR if triggered from pull request
+     - **Light gate** (Option B): run `infrastructure/scripts/verify-vm-deployment.sh` and `iterations/iteration-3-services/verify.sh`; if both succeed, skip deploy and post-verify for this job
+     - **Deploy Application Configuration** (skipped when light gate passes; see requirements below)
+     - **Verify Deployment** (skipped when light gate passes)
+   - **vm-deploy** (runs when Azure is not configured but VM secrets are complete): same light gate, then conditional deploy and verify using `VM_PUBLIC_IP` from secrets
+   - **deploy-notice** (runs when neither full Azure nor complete VM-only secrets): succeeds with a message so the workflow does not fail on missing `azure/login` credentials
+
+### Deploy workflow modes and secrets
+
+| Mode | When it runs | Secrets / inputs |
+|------|----------------|------------------|
+| **Full (Terraform + VM)** | `AZURE_CREDENTIALS` is set | `AZURE_CREDENTIALS`, `DOMAIN`, `SSH_PRIVATE_KEY`, `VM_USERNAME`, plus Terraform SSH bootstrap as today. VM IP comes from Terraform output after apply. |
+| **VM-only** | `AZURE_CREDENTIALS` empty and all of `VM_PUBLIC_IP`, `VM_USERNAME`, `DOMAIN`, `SSH_PRIVATE_KEY` set | No Azure login; deploy uses static `VM_PUBLIC_IP`. |
+| **Skipped** | No Azure and incomplete VM-only set | Job **deploy-notice** only; workflow stays green. |
+
+### Light gate (Option B) and what CI does not check
+
+Before `deploy-to-vm.sh`, the workflow runs:
+
+1. `infrastructure/scripts/verify-vm-deployment.sh` (containers + basic HTTP), and  
+2. `iterations/iteration-3-services/verify.sh` (core services checks).
+
+If **both** exit 0, **deploy-to-vm.sh** and the follow-up **Verify Deployment** step are skipped for that job.
+
+**Consequences**
+
+- **Iteration 4** (DNS, HTTPS/TLS depth) and **iteration 5** (hardening, UFW, rate limits, etc.) are **not** part of the skip decision. The VM could still fail those scripts while the light gate passes. Run `iterations/iteration-4-ssl/verify.sh` and `iterations/iteration-5-security/verify.sh` locally or in a separate process when you change SSL or security.
+- **Iteration 3** expects an “initial setup” style `docker-compose.yml` (e.g. `SIGNUPS_ALLOWED=true`). A VM already hardened for iteration 5 may fail iteration 3 until compose matches what that script checks—resolve locally (rollback or adjust compose) before relying on CI.
 
 **Deploy Application Configuration Step Requirements**:
 
@@ -85,6 +110,7 @@ Configure these secrets in GitHub repository settings:
 - `DOMAIN`: Your domain name (e.g., `https://your-domain.com`)
 - `SSH_PRIVATE_KEY`: Private SSH key for VM access
 - `VM_USERNAME`: VM admin username (e.g., `azureuser`)
+- `VM_PUBLIC_IP`: (VM-only mode only) Public IPv4 of the VM when `AZURE_CREDENTIALS` is not set; required together with `DOMAIN`, `VM_USERNAME`, and `SSH_PRIVATE_KEY` for the **vm-deploy** job
 - `ALERT_EMAIL`: (Optional) Email for health check alerts
 
 ### Setting Up GitHub Secrets

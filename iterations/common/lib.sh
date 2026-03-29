@@ -91,29 +91,87 @@ verify_terraform_state() {
   return 0
 }
 
+# True when VM_PUBLIC_IP, VM_USERNAME, and DOMAIN are set (e.g. GitHub Actions without Terraform state).
+vm_env_config_complete() {
+  [[ -n "${VM_PUBLIC_IP:-}" && -n "${VM_USERNAME:-}" && -n "${DOMAIN:-}" ]]
+}
+
+# Iteration 3 CI / VM-only path: allow verify when Terraform state is missing but VM env is wired.
+verify_terraform_state_or_vm_env() {
+  if verify_terraform_state; then
+    return 0
+  fi
+  if vm_env_config_complete; then
+    print_warning "No usable Terraform state in workspace; using VM_PUBLIC_IP/VM_USERNAME/DOMAIN"
+    return 0
+  fi
+  return 1
+}
+
+load_vm_config_from_env() {
+  if ! vm_env_config_complete; then
+    return 1
+  fi
+  PUBLIC_IP="${VM_PUBLIC_IP}"
+  ADMIN_USER="${VM_USERNAME}"
+  # DOMAIN expected as full URL (e.g. https://host/) — same as Terraform output domain.
+  DOMAIN="${DOMAIN}"
+  RESOURCE_GROUP="${RESOURCE_GROUP:-}"
+  VM_NAME="${VM_NAME:-}"
+  export PUBLIC_IP ADMIN_USER DOMAIN RESOURCE_GROUP VM_NAME
+  DOMAIN_NAME="${DOMAIN#https://}"
+  DOMAIN_NAME="${DOMAIN_NAME#http://}"
+  export DOMAIN_NAME
+  return 0
+}
+
 load_vm_config() {
   local tf_dir
   if ! tf_dir="$(resolve_terraform_dir)"; then
     return 1
   fi
   pushd "$tf_dir" >/dev/null || return 1
-  PUBLIC_IP=$(terraform output -raw vm_public_ip)
-  ADMIN_USER=$(terraform output -raw vm_admin_username)
-  DOMAIN=$(terraform output -raw domain)
-  RESOURCE_GROUP=$(terraform output -raw resource_group_name)
-  VM_NAME=$(terraform output -raw vm_name)
+  if ! PUBLIC_IP=$(terraform output -raw vm_public_ip 2>/dev/null); then
+    popd >/dev/null || true
+    return 1
+  fi
+  if ! ADMIN_USER=$(terraform output -raw vm_admin_username 2>/dev/null); then
+    popd >/dev/null || true
+    return 1
+  fi
+  if ! DOMAIN=$(terraform output -raw domain 2>/dev/null); then
+    popd >/dev/null || true
+    return 1
+  fi
+  RESOURCE_GROUP=$(terraform output -raw resource_group_name 2>/dev/null || echo "")
+  VM_NAME=$(terraform output -raw vm_name 2>/dev/null || echo "")
   popd >/dev/null || true
   export PUBLIC_IP ADMIN_USER DOMAIN RESOURCE_GROUP VM_NAME
   DOMAIN_NAME="${DOMAIN#https://}"
   DOMAIN_NAME="${DOMAIN_NAME#http://}"
   export DOMAIN_NAME
+  return 0
 }
 
 ssh_vm() {
   local cmd="$1"
-  ssh -i ~/.ssh/id_rsa_vaultwarden \
-    -o BatchMode=yes -o ConnectTimeout=15 -o StrictHostKeyChecking=accept-new \
-    "${ADMIN_USER}@${PUBLIC_IP}" "bash -lc $(printf '%q' "$cmd")"
+  local ssh_opts=(-o BatchMode=yes -o ConnectTimeout=15 -o StrictHostKeyChecking=accept-new)
+  if [[ -n "${SSH_IDENTITY_FILE:-}" ]]; then
+    local id="${SSH_IDENTITY_FILE/#\~/${HOME}}"
+    if [[ ! -f "$id" ]]; then
+      print_failure "SSH_IDENTITY_FILE not found: $id" >&2
+      return 1
+    fi
+    ssh_opts=(-i "$id" "${ssh_opts[@]}")
+  elif [[ -f "${HOME}/.ssh/id_rsa_vaultwarden" ]]; then
+    ssh_opts=(-i "${HOME}/.ssh/id_rsa_vaultwarden" "${ssh_opts[@]}")
+  elif [[ -n "${GITHUB_ACTIONS:-}" ]]; then
+    :
+  else
+    print_failure "No SSH private key: set SSH_IDENTITY_FILE or ~/.ssh/id_rsa_vaultwarden (or run in GitHub Actions with ssh-agent)" >&2
+    return 1
+  fi
+  ssh "${ssh_opts[@]}" "${ADMIN_USER}@${PUBLIC_IP}" "bash -lc $(printf '%q' "$cmd")"
 }
 
 verify_ssh_connectivity() {
