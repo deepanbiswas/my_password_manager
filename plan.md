@@ -143,7 +143,7 @@ This checklist supports two deployment approaches:
 - [X] **Iteration 1** — Infrastructure foundation (`terraform apply`, `iterations/iteration-1-infrastructure/verify.sh`)
 - [X] **Iteration 2** — CI/CD (GitHub Actions workflows, secrets, pipeline)
 - [X] **Iteration 3** — Core services on the VM (`deploy-to-vm.sh` / pipeline deploy, `iterations/iteration-3-services/verify.sh`)
-- [ ] **Iteration 4** — Reverse proxy & SSL (next)
+- [X] **Iteration 4** — Reverse proxy & SSL (`iterations/iteration-4-ssl/verify.sh`, DNS + HTTPS + TLS + headers)
 - [ ] **Iterations 5–7** — Security hardening, backup system, monitoring & automation
 
 ### Step 1: Terraform Setup
@@ -227,10 +227,10 @@ This checklist supports two deployment approaches:
   - Follow workflow structure and step instructions from the guide
 - [X] Configure GitHub Secrets (or Azure DevOps variables):
   - [X] `AZURE_SUBSCRIPTION_ID`
-  - [X] `AZURE_CLIENT_ID`
-  - [X] `AZURE_CLIENT_SECRET`
+  - [] `AZURE_CLIENT_ID`
+  - [] `AZURE_CLIENT_SECRET`
   - [X] `AZURE_TENANT_ID`
-  - [X] `AZURE_CREDENTIALS`
+  - [] `AZURE_CREDENTIALS`
   - [X] `DOMAIN`
   - [X] `SSH_PRIVATE_KEY`
   - [X] `VM_USERNAME`
