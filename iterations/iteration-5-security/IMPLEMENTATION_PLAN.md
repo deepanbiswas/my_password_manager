@@ -54,9 +54,17 @@ Confirm the two-phase signup flow (enable signups → create account → **disab
    - Optionally **`deploy.yml`** path filters** — if you only touch `iterations/**`, add **`iterations/**`** to deploy paths or run **`deploy-to-vm.sh`** manually after template changes.
 
 4. **Docs after green verify**  
-   - **[plan.md](../../plan.md)** — TDI progress: tick **Iteration 5**.  
    - **[auto_deploy_iterations.md](../../auto_deploy_iterations.md)** — Success Criteria checkboxes for iteration 5.  
    - **[AGENTS.md](../../AGENTS.md)** — merge = CI green + **`verify.sh`** exit **0** + review.
+
+5. **Update [plan.md](../../plan.md) (tick completed work for this iteration)**  
+   After **`verify.sh`** exits **0**, edit **`plan.md`** in the same feature branch (or a follow-up commit before merge) and **check off** every item that iteration 5 actually completes, for example:
+   - **TDI progress** — set **Iteration 5 — Security hardening** to **`[X]`** and reference **`iterations/iteration-5-security/verify.sh`** (mirror the style used for iterations 3–4).
+   - **Automated Deployment → Step 4** — add or tick a line for **TDI iteration 5** verification if you introduce one (same pattern as iteration 4’s SSL line).
+   - **Common Configuration Steps → [Post-Deployment Verification](../../plan.md#post-deployment-verification)** — tick items now satisfied (e.g. first user account, **disable public signups**, signup page blocked, optional client/WebSocket checks if you performed them as part of the manual phase).
+   - Any other **`[ ]`** rows in **`plan.md`** that iteration 5 explicitly covers (UFW/rate limits/signups) — tick or annotate *“covered by iteration 5 `verify.sh`”* so the guide matches reality.
+
+   Treat **`plan.md`** updates as **part of the iteration deliverable**, not an optional follow-up.
 
 ---
 
@@ -66,7 +74,8 @@ Confirm the two-phase signup flow (enable signups → create account → **disab
 2. Implement **`verify.sh`** (interactive flow + SSH checks); **`shellcheck`** clean.
 3. Implement **`rollback.sh`**.
 4. Run **`../../iterations/iteration-5-security/verify.sh`** from **`infrastructure/terraform`** until exit **0**.
-5. Open PR → **`main`**, wait for **`tdi-quality`**, merge.
+5. **Update `plan.md`** (and **`auto_deploy_iterations.md`** iteration 5 success criteria) by ticking completed items as in **Deliverable 5** above.
+6. Open PR → **`main`**, wait for **`tdi-quality`**, merge.
 
 ---
 
@@ -74,6 +83,7 @@ Confirm the two-phase signup flow (enable signups → create account → **disab
 
 - **`tdi-quality.yml`** green on the PR.
 - **`../../iterations/iteration-5-security/verify.sh`** exits **0** (from `infrastructure/terraform`) after the manual signup step.
+- **`plan.md`** updated with iteration 5 items ticked (see **Deliverable 5**).
 - Review against [`.cursor/rules`](../../.cursor/rules) if you use TDI infra review for `infrastructure/` changes.
 
 ---
