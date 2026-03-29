@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Deploy templates and start Vaultwarden stack on the VM (CI or local with SSH).
 # Required env: VM_PUBLIC_IP, VM_USERNAME, DOMAIN (full URL, e.g. https://host/)
-# Optional: REPO_ROOT (defaults from script location). Backup/cron deferred to Iteration 6.
+# Optional: REPO_ROOT (defaults from script location). Installs backup.sh + nightly crontab (Iteration 6).
 # Optional: SSH_IDENTITY_FILE — private key path (default: ~/.ssh/id_rsa_vaultwarden if present, same as iterations/common/lib.sh / terraform.tfvars).
 #          On GitHub Actions, ssh-agent usually has the key; no file needed.
 set -euo pipefail
@@ -118,6 +118,14 @@ elif docker compose version >/dev/null 2>&1; then
 else
   echo "docker-compose not found" >&2
   exit 1
+fi
+
+# Backup script + nightly cron (TDI iteration 6; templates already under infrastructure/templates/)
+mkdir -p scripts backups
+cp -f infrastructure/templates/backup.sh.template scripts/backup.sh
+chmod +x scripts/backup.sh
+if ! crontab -l 2>/dev/null | grep -qF '/opt/vaultwarden/scripts/backup.sh'; then
+  (crontab -l 2>/dev/null; echo '0 2 * * * cd /opt/vaultwarden && set -a && . ./.env && set +a && /opt/vaultwarden/scripts/backup.sh >> /var/log/vaultwarden-backup.log 2>&1') | crontab -
 fi
 REMOTE
 
