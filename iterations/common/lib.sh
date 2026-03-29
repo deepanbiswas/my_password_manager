@@ -170,7 +170,8 @@ ssh_vm() {
     print_failure "No SSH private key: set SSH_IDENTITY_FILE or ~/.ssh/id_rsa_vaultwarden (or run in GitHub Actions with ssh-agent)" >&2
     return 1
   fi
-  # shellcheck disable=SC2029 -- remote runs quoted command from local printf
+  # shellcheck disable=SC2029
+  # Remote runs quoted command built with local printf.
   ssh "${ssh_opts[@]}" "${ADMIN_USER}@${PUBLIC_IP}" "bash -lc $(printf '%q' "$cmd")"
 }
 
