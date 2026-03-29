@@ -168,17 +168,18 @@ jobs:
           VM_PUBLIC_IP: ${{ steps.vmip.outputs.public_ip }}
           VM_USERNAME: ${{ secrets.VM_USERNAME }}
           DOMAIN: ${{ secrets.DOMAIN }}
+          REPO_ROOT: ${{ github.workspace }}
         run: |
           set -euo pipefail
-          echo "Deploy Application Configuration to ${VM_USERNAME}@${VM_PUBLIC_IP}"
-          echo "::notice::Full SSH deploy (templates, docker compose, Caddy) is expanded in Iteration 3; placeholder only."
-          # ssh -o StrictHostKeyChecking=accept-new "${VM_USERNAME}@${VM_PUBLIC_IP}" '...'
+          chmod +x infrastructure/scripts/deploy-to-vm.sh
+          infrastructure/scripts/deploy-to-vm.sh
 
       - name: Verify Deployment
         env:
           VM_PUBLIC_IP: ${{ steps.vmip.outputs.public_ip }}
+          VM_USERNAME: ${{ secrets.VM_USERNAME }}
           DOMAIN: ${{ secrets.DOMAIN }}
         run: |
           set -euo pipefail
-          echo "Verify Deployment for ${DOMAIN} (VM ${VM_PUBLIC_IP})"
-          echo "::notice::HTTPS health check and container verification are expanded in Iteration 3; placeholder only."
+          chmod +x infrastructure/scripts/verify-vm-deployment.sh
+          infrastructure/scripts/verify-vm-deployment.sh

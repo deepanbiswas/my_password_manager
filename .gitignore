@@ -62,3 +62,6 @@ private-keys/
 
 # Scratchpad (personal notes)
 scratchpad.md
+
+# Local GitHub secrets file for scripts/push-github-secrets.sh
+scripts/github-secrets.env
