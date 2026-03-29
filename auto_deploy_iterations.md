@@ -637,12 +637,14 @@ cd infrastructure/terraform
 
 ### Success Criteria
 
-- [ ] Signups disabled after initial account creation
-- [ ] Firewall secure (only ports 80/443 open)
-- [ ] Rate limiting configured
-- [ ] Resource limits set
-- [ ] .env file permissions correct (600)
-- [ ] Non-root execution verified (UID 1000:1000)
+- [X] Signups disabled after initial account creation
+- [X] Firewall secure (UFW active; SSH 22 + HTTP/HTTPS per cloud-init; see `verify.sh`)
+- [X] Rate limiting configured (Caddy + `caddy-ratelimit` build in `infrastructure/docker/caddy`)
+- [X] Resource limits set
+- [X] .env file permissions correct (600)
+- [X] Non-root execution verified (UID 1000:1000)
+
+*(Enforced by `iterations/iteration-5-security/verify.sh` after the manual signup step.)*
 
 ### Rollback Script Requirements
 

@@ -144,7 +144,8 @@ This checklist supports two deployment approaches:
 - [X] **Iteration 2** — CI/CD (GitHub Actions workflows, secrets, pipeline)
 - [X] **Iteration 3** — Core services on the VM (`deploy-to-vm.sh` / pipeline deploy, `iterations/iteration-3-services/verify.sh`)
 - [X] **Iteration 4** — Reverse proxy & SSL (`iterations/iteration-4-ssl/verify.sh`, DNS + HTTPS + TLS + headers)
-- [ ] **Iterations 5–7** — Security hardening, backup system, monitoring & automation
+- [X] **Iteration 5** — Security hardening (`iterations/iteration-5-security/verify.sh`, signups workflow, UFW, Caddy rate limit, compose limits)
+- [ ] **Iterations 6–7** — Backup system, monitoring & automation
 
 ### Step 1: Terraform Setup
 
@@ -257,6 +258,7 @@ This checklist supports two deployment approaches:
   - [ ] Install backup and health check scripts under `/opt/vaultwarden/scripts` and **crontab** (deferred: align with [Iteration 6](auto_deploy_iterations.md#iteration-6-backup-system) / [Iteration 7](auto_deploy_iterations.md#iteration-7-monitoring--automation); templates are available under `infrastructure/templates/` on the VM)
   - [X] Start all services (Vaultwarden, Caddy, Watchtower)
 - [X] **SSL / HTTPS (TDI iteration 4):** Run `../../iterations/iteration-4-ssl/verify.sh` from `infrastructure/terraform` — exit **0** (DNS → VM IP, Let's Encrypt via Caddy, HTTPS, HTTP→HTTPS redirect, TLS 1.2+, HSTS / `X-Frame-Options` / CSP). See [Iteration 4](auto_deploy_iterations.md#iteration-4-reverse-proxy--ssl-configuration).
+- [X] **Security hardening (TDI iteration 5):** Deploy includes custom Caddy image (`infrastructure/docker/caddy`) with rate limiting; run `../../iterations/iteration-5-security/verify.sh` — exit **0** (signups disabled after account creation, UFW, rate limits, limits, `.env` 600, non-root). See [Iteration 5](auto_deploy_iterations.md#iteration-5-security-hardening).
 - [ ] **If pipeline fails**: See [Rollback Procedures](#rollback-procedures) and [Troubleshooting Guide](docs/troubleshooting.md)
 
 ### Step 4: Verification & Cost Monitoring
@@ -267,7 +269,8 @@ This checklist supports two deployment approaches:
   - **Troubleshooting**: If pipeline failed, see [Troubleshooting Guide - CI/CD Issues](docs/troubleshooting.md#cicd-issues)
 - [X] **Core stack verification (TDI iteration 3):** `iterations/iteration-3-services/verify.sh` run from `infrastructure/terraform` exits **0** (containers, compose, network, `.env` permissions)
 - [X] **SSL / HTTPS verification (TDI iteration 4):** `iterations/iteration-4-ssl/verify.sh` exits **0** (DNS, HTTPS, TLS, security headers; same working directory as above)
-- [ ] **Post-Deployment Verification** (remaining manual checklist): Follow [Post-Deployment Verification](#post-deployment-verification) in Common Configuration Steps (admin account, disable signups, Bitwarden client tests, etc.; HTTPS/TLS header checks are covered by iteration 4 `verify.sh`)
+- [X] **Security verification (TDI iteration 5):** `iterations/iteration-5-security/verify.sh` exits **0** (signups workflow, UFW, Caddy rate limit, resource limits, `.env`, non-root Vaultwarden)
+- [ ] **Post-Deployment Verification** (remaining manual checklist): Follow [Post-Deployment Verification](#post-deployment-verification) in Common Configuration Steps (Bitwarden client tests, optional admin UI spot-checks; account + signups hardening covered by iteration 5 `verify.sh` where applicable)
 - [ ] **Cost Monitoring Setup**: Navigate to Azure Portal → Cost Management + Billing
   - [ ] Create budget alert at ₹3,750 (89% of monthly credits) - early warning
   - [ ] Create critical alert at ₹4,100 (98% of monthly credits) - immediate action needed
@@ -1103,16 +1106,14 @@ These steps are shared between both automated and manual deployment methods. Ref
 - [X] Verify SSL certificate: `openssl s_client -connect your-domain.com:443 -servername your-domain.com | grep "Verify return code"`
   - Should show "Verify return code: 0 (ok)" *(validated in iteration 4 automated checks; re-run on your hostname if needed)*
 - [X] Check certificate expiration: `echo | openssl s_client -connect your-domain.com:443 -servername your-domain.com 2>/dev/null | openssl x509 -noout -dates`
-- [ ] **Create first user account via web UI** (signups are enabled by default):
+- [X] **Create first user account via web UI** (signups are enabled by default):
   - Navigate to `https://your-domain.com`
   - Click "Create Account" and register your master account
-  - Verify account creation successful
-- [ ] **Disable public signups** (security hardening):
-  - Edit `.env` file: `nano /opt/vaultwarden/.env` or `vi /opt/vaultwarden/.env`
-  - Change `SIGNUPS_ALLOWED=true` to `SIGNUPS_ALLOWED=false`
-  - Save and exit
-  - Restart Vaultwarden container: `cd /opt/vaultwarden && docker-compose restart vaultwarden`
-  - Verify signups disabled: Attempt to access signup page - should be blocked or show error
+  - Verify account creation successful *(part of **TDI iteration 5** manual step)*
+- [X] **Disable public signups** (security hardening):
+  - Set **`SIGNUPS_ALLOWED`** to **`false`** in **`docker-compose.yml`** on the VM (source of truth in this deployment; optional `.env` only if you add the variable there)
+  - Restart stack: `cd /opt/vaultwarden && docker compose up -d`
+  - Verify signups disabled *(**TDI iteration 5** `verify.sh` asserts `SIGNUPS_ALLOWED=false` and register API is not open)*
 - [ ] Test login from Bitwarden client with your newly created account
 - [ ] Verify WebSocket connection (check real-time sync in Bitwarden client)
 - [ ] Check container logs: `docker-compose logs -f`

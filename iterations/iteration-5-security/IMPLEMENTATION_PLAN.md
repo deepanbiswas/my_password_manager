@@ -90,4 +90,4 @@ Confirm the two-phase signup flow (enable signups → create account → **disab
 
 ## Status
 
-*Plan only — implement `verify.sh` / `rollback.sh` and template updates in this branch, then update status here after the first passing run.*
+**Implemented:** Custom Caddy Dockerfile (`mholt/caddy-ratelimit`), template updates, `deploy-to-vm.sh` syncs `infrastructure/docker/caddy`, `verify.sh` / `rollback.sh`, and **`plan.md`** / **`auto_deploy_iterations.md`** ticked per Deliverable 5. Run `verify.sh` from `infrastructure/terraform` after deploying to the VM (first Caddy **build** can take several minutes).

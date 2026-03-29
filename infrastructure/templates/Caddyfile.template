@@ -8,6 +8,15 @@
         protocols tls1.2 tls1.3
     }
 
+    # Per-IP rate limit (mholt/caddy-ratelimit); ~50 requests/minute
+    rate_limit {
+        zone vaultwarden_per_ip {
+            key {remote_host}
+            events 50
+            window 1m
+        }
+    }
+
     header {
         Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
         X-Content-Type-Options "nosniff"

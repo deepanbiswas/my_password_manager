@@ -28,7 +28,10 @@ services:
           memory: 2G
 
   caddy:
-    image: caddy:latest
+    build:
+      context: ./docker/caddy
+      dockerfile: Dockerfile
+    image: vaultwarden-caddy:ratelimit
     container_name: caddy
     restart: unless-stopped
     ports:
