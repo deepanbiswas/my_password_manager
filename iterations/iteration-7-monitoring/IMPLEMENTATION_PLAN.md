@@ -33,5 +33,5 @@ Deploy **`health-check.sh`** from [`health-check.sh.template`](../../infrastruct
 
 - [x] `deploy-to-vm.sh` installs health-check + cron + logrotate
 - [x] `verify.sh` / `rollback.sh`
-- [x] Merge PR #6; `verify.sh` exit 0 on VM after deploy
+- [x] Deploy to VM (`deploy-to-vm.sh` / pipeline); `verify.sh` exit 0 on VM after deploy
 - [ ] Azure cost budgets/alerts in Portal per [plan.md](../../plan.md) Step 4 (manual)

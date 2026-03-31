@@ -1090,7 +1090,7 @@ These steps are shared between both automated and manual deployment methods. Ref
 
 ### Post-Deployment Verification
 
-**Estimated Time**: 15-20 minutes
+**Estimated Time**: 20–30 minutes (add a few minutes if you hash the admin token below)
 
 **Directory Structure Verification:**
 - [ ] Verify directory structure exists: `ls -la /opt/vaultwarden/`
@@ -1101,6 +1101,11 @@ These steps are shared between both automated and manual deployment methods. Ref
 **Service Verification:**
 - [ ] Access admin panel: `https://your-domain.com/admin`
   - **Troubleshooting**: If admin panel is inaccessible, see [Troubleshooting Guide - Access Issues](docs/troubleshooting.md#access-issues)
+- [x] **Secure `ADMIN_TOKEN` with Argon2 PHC (recommended after first login):** Automated deploy seeds a random plain token in `.env`; Vaultwarden may warn that plain text is insecure until you replace it. On the VM, with the stack running:
+  1. `docker exec -it vaultwarden /vaultwarden hash` — enter a **strong admin passphrase** twice (this passphrase is what you use to open `/admin` afterward).
+  2. Put the printed **`$argon2id$...`** string into `/opt/vaultwarden/.env` as **`ADMIN_TOKEN='...'`** (use **single quotes** around the PHC so `$` is not interpreted). See [Vaultwarden wiki — Secure the `ADMIN_TOKEN`](https://github.com/dani-garcia/vaultwarden/wiki/Enabling-admin-page#secure-the-admin_token).
+  3. `cd /opt/vaultwarden && docker compose up -d`
+  4. Open `/admin` and sign in with the **passphrase from step 1**, not the PHC string. If you previously saved settings in the admin UI, check `config.json` precedence per that wiki page if the warning persists.
 - [X] Verify HTTPS working (green lock in browser optional; **TDI iteration 4** `verify.sh` checks HTTPS and TLS)
 - [X] Verify SSL certificate: `openssl s_client -connect your-domain.com:443 -servername your-domain.com | grep "Verify return code"`
   - Should show "Verify return code: 0 (ok)" *(validated in iteration 4 automated checks; re-run on your hostname if needed)*
