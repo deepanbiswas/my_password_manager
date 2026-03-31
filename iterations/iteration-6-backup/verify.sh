@@ -44,12 +44,12 @@ else
 fi
 
 if ! ssh_vm "rclone config show 2>/dev/null | grep -qF '[${RCLONE_REMOTE_NAME_VM}]'"; then
-  print_warning "Rclone remote '${RCLONE_REMOTE_NAME_VM}' not found in config (rclone config show). Configure per plan.md / docs/rclone-google-drive-service-account.md"
+  print_warning "Rclone remote '${RCLONE_REMOTE_NAME_VM}' not found in config (rclone config show). Configure per plan.md / docs/rclone-google-drive.md"
   STATUS=1
 else
   print_success "Rclone remote '${RCLONE_REMOTE_NAME_VM}' present in config"
-  if ssh_vm "rclone config show \"${RCLONE_REMOTE_NAME_VM}\" 2>/dev/null | grep -q '^service_account_file'"; then
-    print_success "rclone remote uses service_account_file (Drive access scoped to shared folder)"
+  if ssh_vm "rclone config show \"${RCLONE_REMOTE_NAME_VM}\" 2>/dev/null | grep -qE '^token[[:space:]]*='"; then
+    print_success "rclone remote uses OAuth token (e.g. drive.file / drive scope)"
   fi
 fi
 

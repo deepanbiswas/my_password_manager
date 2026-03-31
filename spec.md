@@ -684,8 +684,7 @@ For backup verification procedures, see [plan.md](plan.md).
 
 - **Rclone Encryption**: Optional additional layer (rclone crypt remote)
 - **Access Control**: Google Drive account with 2FA enabled
-- **API Scopes**: Minimal required scopes (drive.file)
-- **Service Account**: Optional (for automated access without personal account)
+- **API Scopes**: Minimal required scopes (e.g. `drive.file` via OAuth)
 
 #### 5.3.2 Encryption Key Management
 

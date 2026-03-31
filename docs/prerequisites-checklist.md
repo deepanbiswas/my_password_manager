@@ -148,7 +148,7 @@ ssh-keygen -lf ~/.ssh/id_rsa_vaultwarden.pub
 
 ```bash
 rclone version
-rclone config   # create remote (see docs/rclone-google-drive-service-account.md for service account)
+rclone config   # create remote (see docs/rclone-google-drive.md)
 ```
 
 ---

@@ -16,7 +16,7 @@ Deploy **`backup.sh`** from [`backup.sh.template`](../../infrastructure/template
 | Aspect | Automated | Manual |
 |--------|-----------|--------|
 | **backup.sh + crontab on VM** | [`deploy-to-vm.sh`](../../infrastructure/scripts/deploy-to-vm.sh) copies template → `scripts/backup.sh`, idempotent crontab. | Re-run deploy after merging to `main` if **`infrastructure/**`** changed (Deploy workflow path filter). |
-| **Rclone `gdrive`** | Not in repo | Configure on VM per [plan.md](../../plan.md) before `verify.sh` upload checks pass. |
+| **Rclone `gdrive`** | Not in repo | Configure on VM per [plan.md](../../plan.md) before `verify.sh` upload checks pass — [docs](../../docs/rclone-google-drive.md). |
 | **`verify.sh`** | Not in CI (SSH) | From `infrastructure/terraform`: `../../iterations/iteration-6-backup/verify.sh` |
 
 ---
@@ -33,4 +33,4 @@ Deploy **`backup.sh`** from [`backup.sh.template`](../../infrastructure/template
 
 - [x] `deploy-to-vm.sh` installs backup + cron
 - [x] `verify.sh` / `rollback.sh`
-- [x] Merge PR; run `verify.sh` on VM after deploy (requires **rclone `gdrive`**)
+- [x] Merge PR; run `verify.sh` on VM after deploy (requires **rclone `gdrive`** remote — OAuth)

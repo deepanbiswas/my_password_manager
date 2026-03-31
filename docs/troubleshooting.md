@@ -100,17 +100,17 @@ tail -n 50 /var/log/vaultwarden-backup.log
 rclone ls "${REMOTE}:vaultwarden-backups/"
 ```
 
-**Service account setup:** If you use a **service account** + shared folder, see [Rclone: Google Drive with a service account](rclone-google-drive-service-account.md). Typical failures:
+**Rclone setup:** OAuth with Google Drive — see [Rclone: Google Drive for Vaultwarden backups](rclone-google-drive.md). Typical failures:
 
 | Symptom | Check |
 |---------|--------|
-| `403` / API not enabled | Enable **Google Drive API** on the GCP project for that service account |
-| Folder empty / permission denied | Folder shared with the **service account email**; `root_folder_id` matches the folder URL |
+| `403` / API not enabled | Enable **Google Drive API** on the GCP project for your OAuth client |
+| OAuth / consent errors | Consent screen in Testing: add your Google account as a **test user** |
 | `vaultwarden-backups` missing | Run once: `rclone mkdir "<remote>:vaultwarden-backups"` |
 
 **Common Causes:**
 - Rclone not configured correctly (remote name mismatch with `RCLONE_REMOTE_NAME` in `.env`)
-- Google Drive API quota exceeded or API not enabled (service account)
+- Google Drive API quota exceeded or API not enabled
 - Encryption key missing or incorrect
 - Network connectivity issues
 

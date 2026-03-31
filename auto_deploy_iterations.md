@@ -709,7 +709,7 @@ cd infrastructure/terraform
 The `verify.sh` script must perform the following checks:
 
 1. **Verify backup.sh script exists and is executable**: Check file exists at `/opt/vaultwarden/scripts/backup.sh` and has execute permissions
-2. **Verify Rclone configured**: Check the Drive remote named in `RCLONE_REMOTE_NAME` (default `gdrive`) exists in `rclone config show` — typically [service account + shared folder](docs/rclone-google-drive-service-account.md) or legacy OAuth
+2. **Verify Rclone configured**: Check the Drive remote named in `RCLONE_REMOTE_NAME` (default `gdrive`) exists in `rclone config show` — [docs/rclone-google-drive.md](docs/rclone-google-drive.md)
 3. **Verify SQLite backup approach**: Check backup script uses `sqlite3` with `.backup` on the host bind mount (or legacy `docker exec … sqlite3` if your image provides `sqlite3`). The official `vaultwarden/server` image does **not** include `sqlite3`; the repo template uses host `sqlite3` on `/opt/vaultwarden/vaultwarden/data/db.sqlite3`.
 4. **Verify backup encryption key**: Check `BACKUP_ENCRYPTION_KEY` is set in `.env` file
 5. **Execute test backup**: Run backup script manually and verify it completes successfully
