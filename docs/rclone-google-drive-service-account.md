@@ -45,6 +45,24 @@ Backups remain **GPG-encrypted** by `BACKUP_ENCRYPTION_KEY` before upload; this 
 
 ## Phase C — VM: JSON path and `rclone config`
 
+### Option: migrate from your laptop (script)
+
+If you have the JSON on your Mac/Linux machine and SSH to the VM works (same as [`deploy-to-vm.sh`](../infrastructure/scripts/deploy-to-vm.sh)):
+
+```bash
+cd infrastructure/terraform
+export VM_PUBLIC_IP="$(terraform output -raw vm_public_ip)"
+export VM_USERNAME="$(terraform output -raw vm_admin_username)"
+# optional: export SSH_IDENTITY_FILE=~/.ssh/id_rsa_vaultwarden
+../scripts/migrate-rclone-service-account-on-vm.sh \
+  --json-file /path/to/your-service-account.json \
+  --root-folder-id YOUR_FOLDER_ID_FROM_DRIVE_URL
+```
+
+This backs up `rclone.conf`, removes the existing remote name (default `gdrive`), creates a new `drive` remote with `service_account_file` + `root_folder_id`, and runs `mkdir` for `vaultwarden-backups`. Then run a manual backup and `../../iterations/iteration-6-backup/verify.sh`.
+
+### Manual steps on the VM
+
 1. Copy the JSON to the VM, e.g. `/opt/vaultwarden/secrets/rclone-sa.json`:
    ```bash
    sudo mkdir -p /opt/vaultwarden/secrets
