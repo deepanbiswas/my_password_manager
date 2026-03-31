@@ -248,7 +248,7 @@ This checklist supports two deployment approaches:
 - [X] **Configure DNS**: Follow [DNS Configuration](#dns-configuration) steps in Common Configuration Steps
   - **Important**: DNS must be configured **immediately after Terraform apply** and **before** CI/CD pipeline runs
   - Use the VM IP from step above (or use the Azure public IP FQDN from Terraform if you are not using a custom domain yet)
-- [X] **Configure Rclone**: Follow [Rclone Configuration](#rclone-configuration) steps in Common Configuration Steps (required before **Iteration 6** backups; remote `gdrive` + `vaultwarden-backups/`)
+- [X] **Configure Rclone**: Follow [Rclone Configuration](#rclone-configuration) steps in Common Configuration Steps (required before **Iteration 6** backups; prefer [service account + shared folder](docs/rclone-google-drive-service-account.md); remote name + `vaultwarden-backups/`)
   - **Important**: Rclone must be configured **before** automated backup/cron deployment ([Iteration 6](auto_deploy_iterations.md#iteration-6-backup-system))
 - [X] Push code to trigger CI/CD pipeline (or wait for automatic trigger)
 - [X] Monitor pipeline / deploy — completed for **core services** (TDI iteration 3):
@@ -1051,17 +1051,27 @@ These steps are shared between both automated and manual deployment methods. Ref
 
 ### Rclone Configuration
 
-**Estimated Time**: 5-10 minutes
+**Estimated Time**: 15–25 minutes (service account) or 5–10 minutes (legacy OAuth)
 
-**⚠️ IMPORTANT**: Rclone configuration is required before backup automation can work. This step cannot be fully automated as it requires interactive authentication with Google Drive.
+**⚠️ IMPORTANT**: Rclone must be configured before backup automation works. Prefer a **Google Cloud service account** and a **single shared Drive folder** so the VM does not store a token for your full personal Google account. See [Rclone: Google Drive with a service account](docs/rclone-google-drive-service-account.md).
+
+**Recommended (service account)**
 
 - [ ] SSH into VM: `ssh username@vm-ip-address`
-- [ ] Configure Rclone: `rclone config`
-  - **Troubleshooting**: If Rclone configuration fails, see [Troubleshooting Guide - Rclone Issues](docs/troubleshooting.md#rclone-issues)
-- [ ] Create remote named `gdrive` (or update `RCLONE_REMOTE_NAME` in `.env`)
-- [ ] Test connection: `rclone lsd gdrive:`
-- [ ] Create backup directory: `rclone mkdir gdrive:vaultwarden-backups`
-- [ ] Verify remote is accessible: `rclone ls gdrive:vaultwarden-backups/`
+- [ ] Complete **Phases B and C** in [docs/rclone-google-drive-service-account.md](docs/rclone-google-drive-service-account.md): enable Drive API, create service account, download JSON, share a folder with the SA email, set `root_folder_id` and `service_account_file` in `rclone config`
+- [ ] Store the JSON under e.g. `/opt/vaultwarden/secrets/` with `chmod 600` (never commit it)
+- [ ] Set `RCLONE_REMOTE_NAME` in `/opt/vaultwarden/.env` to match the remote name (default `gdrive`)
+- [ ] `rclone mkdir <remote>:vaultwarden-backups` once, then `rclone lsd <remote>:vaultwarden-backups`
+- [ ] Test: `rclone ls <remote>:vaultwarden-backups/` (replace `<remote>` with your remote name, e.g. `gdrive`)
+
+**Legacy (OAuth user token)** — broader Drive access; use only if you accept that trade-off
+
+- [ ] `rclone config` → Google Drive → OAuth in browser; remote name must match `RCLONE_REMOTE_NAME` in `.env`
+- [ ] `rclone lsd <remote>:` and `rclone mkdir <remote>:vaultwarden-backups` as above
+
+**Undo / migrate from OAuth** — see **Phase A** in [docs/rclone-google-drive-service-account.md](docs/rclone-google-drive-service-account.md).
+
+**Troubleshooting**: [Troubleshooting Guide — Backup fails](docs/troubleshooting.md#backup-fails)
 
 ### Environment Variables Setup
 

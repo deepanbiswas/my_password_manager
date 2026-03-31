@@ -74,15 +74,21 @@ docker-compose config
 
 **Solutions:**
 
+Use the remote name from `/opt/vaultwarden/.env` (`RCLONE_REMOTE_NAME`, default `gdrive`). Replace `<remote>` below.
+
 ```bash
-# Check Rclone configuration
-rclone config show gdrive
+cd /opt/vaultwarden
+REMOTE="${RCLONE_REMOTE_NAME:-gdrive}"
+grep -E '^RCLONE_REMOTE_NAME=' .env 2>/dev/null || true
+
+# Check Rclone configuration for that remote
+rclone config show "$REMOTE"
 
 # Test Rclone connection
-rclone lsd gdrive:
+rclone lsd "${REMOTE}:"
 
-# Check encryption key
-echo $BACKUP_ENCRYPTION_KEY
+# Check encryption key is set after sourcing .env
+set -a && source .env && set +a && test -n "${BACKUP_ENCRYPTION_KEY:-}" && echo "BACKUP_ENCRYPTION_KEY is set"
 
 # Test backup manually
 ./scripts/backup.sh
@@ -90,13 +96,21 @@ echo $BACKUP_ENCRYPTION_KEY
 # Check backup logs
 tail -n 50 /var/log/vaultwarden-backup.log
 
-# Verify Google Drive access
-rclone ls gdrive:vaultwarden-backups/
+# Verify Google Drive path used by backup.sh
+rclone ls "${REMOTE}:vaultwarden-backups/"
 ```
 
+**Service account setup:** If you use a **service account** + shared folder, see [Rclone: Google Drive with a service account](rclone-google-drive-service-account.md). Typical failures:
+
+| Symptom | Check |
+|---------|--------|
+| `403` / API not enabled | Enable **Google Drive API** on the GCP project for that service account |
+| Folder empty / permission denied | Folder shared with the **service account email**; `root_folder_id` matches the folder URL |
+| `vaultwarden-backups` missing | Run once: `rclone mkdir "<remote>:vaultwarden-backups"` |
+
 **Common Causes:**
-- Rclone not configured correctly
-- Google Drive API quota exceeded
+- Rclone not configured correctly (remote name mismatch with `RCLONE_REMOTE_NAME` in `.env`)
+- Google Drive API quota exceeded or API not enabled (service account)
 - Encryption key missing or incorrect
 - Network connectivity issues
 

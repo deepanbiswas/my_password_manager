@@ -709,12 +709,12 @@ cd infrastructure/terraform
 The `verify.sh` script must perform the following checks:
 
 1. **Verify backup.sh script exists and is executable**: Check file exists at `/opt/vaultwarden/scripts/backup.sh` and has execute permissions
-2. **Verify Rclone configured**: Check Rclone remote 'gdrive' is configured using `rclone config show`
+2. **Verify Rclone configured**: Check the Drive remote named in `RCLONE_REMOTE_NAME` (default `gdrive`) exists in `rclone config show` — typically [service account + shared folder](docs/rclone-google-drive-service-account.md) or legacy OAuth
 3. **Verify SQLite backup approach**: Check backup script uses `sqlite3` with `.backup` on the host bind mount (or legacy `docker exec … sqlite3` if your image provides `sqlite3`). The official `vaultwarden/server` image does **not** include `sqlite3`; the repo template uses host `sqlite3` on `/opt/vaultwarden/vaultwarden/data/db.sqlite3`.
 4. **Verify backup encryption key**: Check `BACKUP_ENCRYPTION_KEY` is set in `.env` file
 5. **Execute test backup**: Run backup script manually and verify it completes successfully
 6. **Verify backup artifact path**: Encrypted artifact is produced during the run (script may remove local `.gpg` after `rclone` upload; success is confirmed by upload check below)
-7. **Verify backup uploaded to Google Drive**: Check at least one object exists under `gdrive:vaultwarden-backups/` using `rclone lsf`
+7. **Verify backup uploaded to Google Drive**: Check at least one object exists under `<RCLONE_REMOTE_NAME>:vaultwarden-backups/` (default `gdrive:`) using `rclone lsf`
 8. **Verify crontab entry**: Check crontab contains entry for nightly backup (runs at 2 AM)
 9. **Verify backup manifest creation**: Check backup script contains manifest creation logic
 10. **Verify host tooling**: `sqlite3` is installed on the VM (e.g. cloud-init / [plan.md](plan.md)); backup reads the database from the Docker volume path on the host, not from inside the container binary path

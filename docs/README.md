@@ -8,6 +8,10 @@ This directory contains detailed documentation and guides for the self-hosted pa
 - Checklist for [plan.md](../plan.md) prerequisites: Azure, domain/DNS, GitHub, Terraform, Azure CLI, SSH keys, Google Drive / Rclone
 - Verification commands and suggested order
 
+### [Rclone: Google Drive with a service account](rclone-google-drive-service-account.md)
+- Service account JSON, shared folder, `root_folder_id`, undo OAuth remote
+- Recommended over OAuth for least Drive exposure on the VM
+
 ### [Reverse Proxy Comparison](reverse-proxy-comparison.md)
 - Why Caddy is recommended vs Nginx
 - Feature comparison table

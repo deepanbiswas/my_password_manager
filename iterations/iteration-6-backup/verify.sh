@@ -23,6 +23,12 @@ source "${SCRIPT_DIR}/../common/config.sh"
 BACKUP_SCRIPT="/opt/vaultwarden/scripts/backup.sh"
 ENV_FILE="/opt/vaultwarden/.env"
 
+# Remote name must match rclone config and RCLONE_REMOTE_NAME in .env (default gdrive)
+RCLONE_REMOTE_NAME_VM="$(ssh_vm "grep -E '^RCLONE_REMOTE_NAME=' ${ENV_FILE} 2>/dev/null | head -1 | cut -d= -f2- | tr -d '[:space:]'" 2>/dev/null | tr -d '\r' || true)"
+if [[ -z "${RCLONE_REMOTE_NAME_VM}" ]]; then
+  RCLONE_REMOTE_NAME_VM="gdrive"
+fi
+
 if ! ssh_vm "test -x ${BACKUP_SCRIPT}"; then
   print_failure "backup.sh missing or not executable at ${BACKUP_SCRIPT}"
   STATUS=1
@@ -37,11 +43,14 @@ else
   print_success "rclone installed"
 fi
 
-if ! ssh_vm "rclone config show 2>/dev/null | grep -qF '[gdrive]'"; then
-  print_warning "Rclone remote 'gdrive' not found in config (rclone config show). Configure per plan.md before backups can upload."
+if ! ssh_vm "rclone config show 2>/dev/null | grep -qF '[${RCLONE_REMOTE_NAME_VM}]'"; then
+  print_warning "Rclone remote '${RCLONE_REMOTE_NAME_VM}' not found in config (rclone config show). Configure per plan.md / docs/rclone-google-drive-service-account.md"
   STATUS=1
 else
-  print_success "Rclone remote 'gdrive' present in config"
+  print_success "Rclone remote '${RCLONE_REMOTE_NAME_VM}' present in config"
+  if ssh_vm "rclone config show \"${RCLONE_REMOTE_NAME_VM}\" 2>/dev/null | grep -q '^service_account_file'"; then
+    print_success "rclone remote uses service_account_file (Drive access scoped to shared folder)"
+  fi
 fi
 
 if ! ssh_vm "grep -qE 'sqlite3.*\\.backup|docker exec.*sqlite3|docker cp' ${BACKUP_SCRIPT}"; then
@@ -80,17 +89,17 @@ if [[ "$STATUS" -eq 0 ]]; then
   if ssh_vm "cd /opt/vaultwarden && set -a && source .env && set +a && ./scripts/backup.sh"; then
     print_success "backup.sh completed successfully"
   else
-    print_failure "backup.sh execution failed (check rclone gdrive, gpg, docker)"
+    print_failure "backup.sh execution failed (check rclone remote ${RCLONE_REMOTE_NAME_VM}, gpg, docker)"
     STATUS=1
   fi
 fi
 
 if [[ "$STATUS" -eq 0 ]]; then
-  if ! ssh_vm "rclone lsf 'gdrive:vaultwarden-backups/' 2>/dev/null | head -1 | grep -q ."; then
-    print_warning "No files listed under gdrive:vaultwarden-backups/ (upload may have failed)"
+  if ! ssh_vm "rclone lsf \"${RCLONE_REMOTE_NAME_VM}:vaultwarden-backups/\" 2>/dev/null | head -1 | grep -q ."; then
+    print_warning "No files listed under ${RCLONE_REMOTE_NAME_VM}:vaultwarden-backups/ (upload may have failed)"
     STATUS=1
   else
-    print_success "Remote path gdrive:vaultwarden-backups/ contains at least one object"
+    print_success "Remote path ${RCLONE_REMOTE_NAME_VM}:vaultwarden-backups/ contains at least one object"
   fi
 fi
 
