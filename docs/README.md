@@ -36,6 +36,10 @@ This directory contains detailed documentation and guides for the self-hosted pa
 - Provider comparison table
 - Future planning scenarios
 
+### [Maintenance](maintenance/README.md)
+- Low-effort ongoing tasks: updates without data loss, security habits, key rotation, budget, restore from Google Drive
+- One self-contained guide per topic under `maintenance/`
+
 ### [Terraform Guide](terraform-guide.md)
 - Complete Terraform infrastructure code
 - Cloud-init script details

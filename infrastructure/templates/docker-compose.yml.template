@@ -3,7 +3,7 @@
 
 services:
   vaultwarden:
-    image: vaultwarden/server:1.30.0
+    image: vaultwarden/server:latest
     container_name: vaultwarden
     restart: unless-stopped
     user: "1000:1000"
