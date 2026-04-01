@@ -39,7 +39,8 @@ services:
       - "443:443"
       - "443:443/udp"
     volumes:
-      - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      # rw so `caddy fmt --overwrite /etc/caddy/Caddyfile` works from the container (host file updates).
+      - ./caddy/Caddyfile:/etc/caddy/Caddyfile
       - ./caddy/data:/data
       - ./caddy/config:/config
     networks:

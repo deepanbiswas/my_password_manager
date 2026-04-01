@@ -71,7 +71,7 @@ This section maps requirements from [spec.md](spec.md) to execution steps in thi
 | Strong cipher suites (ECDHE, AES-GCM) | **Automated**: [Step 1: Terraform Setup](#step-1-terraform-setup) (Caddyfile.template: tls ciphers)<br>**Manual**: [Step 5: Deploy Services](#step-5-deploy-services) (Caddyfile) | Cipher suites configured in Caddyfile |
 | Security headers | **Automated**: [Step 1: Terraform Setup](#step-1-terraform-setup) (Caddyfile.template)<br>**Manual**: [Step 5: Deploy Services](#step-5-deploy-services) (Caddyfile) | HTTP headers (HSTS, X-Frame-Options, etc.) |
 | Content-Security-Policy header | **Automated**: [Step 1: Terraform Setup](#step-1-terraform-setup) (Caddyfile.template)<br>**Manual**: [Step 5: Deploy Services](#step-5-deploy-services) (Caddyfile) | CSP header configured in Caddyfile |
-| Rate limiting (50 requests/minute per IP) | **Automated**: [Step 1: Terraform Setup](#step-1-terraform-setup) (Caddyfile.template: rate_limit events 50)<br>**Manual**: [Step 5: Deploy Services](#step-5-deploy-services) (Caddyfile) | Rate limiting configured in Caddyfile |
+| Rate limiting (~300 requests/minute per IP) | **Automated**: [Step 1: Terraform Setup](#step-1-terraform-setup) (Caddyfile.template: rate_limit events 300)<br>**Manual**: [Step 5: Deploy Services](#step-5-deploy-services) (Caddyfile) | Rate limiting configured in Caddyfile |
 | Container resource limits | **Automated**: [Step 1: Terraform Setup](#step-1-terraform-setup) (docker-compose.yml.template: deploy.resources.limits)<br>**Manual**: [Step 5: Deploy Services](#step-5-deploy-services) (docker-compose.yml) | CPU and memory limits configured |
 | **Section 3.5: Deployment Method Requirements** |
 | Terraform IaC | **Automated**: [Step 1: Terraform Setup](#step-1-terraform-setup) | Infrastructure provisioning |
@@ -269,20 +269,20 @@ This checklist supports two deployment approaches:
 - [X] **Core stack verification (TDI iteration 3):** `iterations/iteration-3-services/verify.sh` run from `infrastructure/terraform` exits **0** (containers, compose, network, `.env` permissions)
 - [X] **SSL / HTTPS verification (TDI iteration 4):** `iterations/iteration-4-ssl/verify.sh` exits **0** (DNS, HTTPS, TLS, security headers; same working directory as above)
 - [X] **Security verification (TDI iteration 5):** `iterations/iteration-5-security/verify.sh` exits **0** (signups workflow, UFW, Caddy rate limit, resource limits, `.env`, non-root Vaultwarden)
-- [ ] **Post-Deployment Verification** (remaining manual checklist): Follow [Post-Deployment Verification](#post-deployment-verification) in Common Configuration Steps (Bitwarden client tests, optional admin UI spot-checks; account + signups hardening covered by iteration 5 `verify.sh` where applicable)
-- [ ] **Cost Monitoring Setup**: Navigate to Azure Portal → Cost Management + Billing
-  - [ ] Create budget alert at ₹3,750 (89% of monthly credits) - early warning
-  - [ ] Create critical alert at ₹4,100 (98% of monthly credits) - immediate action needed
-  - [ ] Set up email notifications
-  - [ ] Configure daily cost reports
-  - [ ] Verify tag-based cost tracking (use Azure CLI):
+- [X] **Post-Deployment Verification** (remaining manual checklist): Follow [Post-Deployment Verification](#post-deployment-verification) in Common Configuration Steps (Bitwarden client tests, optional admin UI spot-checks; account + signups hardening covered by iteration 5 `verify.sh` where applicable)
+- [X] **Cost Monitoring Setup**: Navigate to Azure Portal → Cost Management + Billing
+  - [X] Create budget alert at ₹3,750 (89% of monthly credits) - early warning
+  - [X] Create critical alert at ₹4,100 (98% of monthly credits) - immediate action needed
+  - [X] Set up email notifications
+  - [X] Configure daily cost reports
+  - [X] Verify tag-based cost tracking (use Azure CLI):
     ```bash
     az consumption usage list \
       --start-date $(date -d "1 month ago" +%Y-%m-%d) \
       --end-date $(date +%Y-%m-%d) \
       --query "[?tags.Project=='password-manager']"
     ```
-  - [ ] For detailed cost analysis and optimization strategies, see [Cost Analysis](docs/cost-analysis.md)
+  - [X] For detailed cost analysis and optimization strategies, see [Cost Analysis](docs/cost-analysis.md)
 
 ### Step 5: Ongoing Operations
 
@@ -427,7 +427,7 @@ The script must perform the following tasks:
 
 **Estimated Time**: 15-20 minutes
 
-- [ ] **Post-Deployment Verification**: Follow [Post-Deployment Verification](#post-deployment-verification) steps in Common Configuration Steps
+- [X] **Post-Deployment Verification**: Follow [Post-Deployment Verification](#post-deployment-verification) steps in Common Configuration Steps
 
 ### Step 7: Backup Automation
 
@@ -511,19 +511,19 @@ If the script is not available, you can tag resources manually using Azure CLI c
 **Note**: See [Resource Tagging Script](#resource-tagging-script-tag-resourcessh) in Templates Reference section for the automated script that handles all resources with proper discovery and error handling.
 
 **Cost Monitoring Setup:**
-- [ ] Navigate to Azure Portal → Cost Management + Billing
-- [ ] Create budget alert at ₹3,750 (89% of monthly credits) - early warning
-- [ ] Create critical alert at ₹4,100 (98% of monthly credits) - immediate action needed
-- [ ] Set up email notifications
-- [ ] Configure daily cost reports
-- [ ] Verify tag-based cost tracking (use Azure CLI):
+- [X] Navigate to Azure Portal → Cost Management + Billing
+- [X] Create budget alert at ₹3,750 (89% of monthly credits) - early warning
+- [X] Create critical alert at ₹4,100 (98% of monthly credits) - immediate action needed
+- [X] Set up email notifications
+- [X] Configure daily cost reports
+- [X] Verify tag-based cost tracking (use Azure CLI):
   ```bash
   az consumption usage list \
     --start-date $(date -d "1 month ago" +%Y-%m-%d) \
     --end-date $(date +%Y-%m-%d) \
     --query "[?tags.Project=='password-manager']"
   ```
-- [ ] For detailed cost analysis and optimization strategies, see [Cost Analysis](docs/cost-analysis.md)
+- [X] For detailed cost analysis and optimization strategies, see [Cost Analysis](docs/cost-analysis.md)
 
 ## Disaster Recovery
 
@@ -1093,15 +1093,15 @@ These steps are shared between both automated and manual deployment methods. Ref
 **Estimated Time**: 20–30 minutes (add a few minutes if you hash the admin token below)
 
 **Directory Structure Verification:**
-- [ ] Verify directory structure exists: `ls -la /opt/vaultwarden/`
-- [ ] Verify required directories: `ls -la /opt/vaultwarden/{caddy,vaultwarden,scripts,backups}`
-- [ ] Verify directory ownership: `ls -ld /opt/vaultwarden` (should be owned by deployment user)
-- [ ] Verify `.env` file permissions: `ls -la /opt/vaultwarden/.env` (should be 600)
+- [X] Verify directory structure exists: `ls -la /opt/vaultwarden/`
+- [X] Verify required directories: `ls -la /opt/vaultwarden/{caddy,vaultwarden,scripts,backups}`
+- [X] Verify directory ownership: `ls -ld /opt/vaultwarden` (should be owned by deployment user)
+- [X] Verify `.env` file permissions: `ls -la /opt/vaultwarden/.env` (should be 600)
 
 **Service Verification:**
-- [ ] Access admin panel: `https://your-domain.com/admin`
+- [X] Access admin panel: `https://your-domain.com/admin`
   - **Troubleshooting**: If admin panel is inaccessible, see [Troubleshooting Guide - Access Issues](docs/troubleshooting.md#access-issues)
-- [x] **Secure `ADMIN_TOKEN` with Argon2 PHC (recommended after first login):** Automated deploy seeds a random plain token in `.env`; Vaultwarden may warn that plain text is insecure until you replace it. On the VM, with the stack running:
+- [X] **Secure `ADMIN_TOKEN` with Argon2 PHC (recommended after first login):** Automated deploy seeds a random plain token in `.env`; Vaultwarden may warn that plain text is insecure until you replace it. On the VM, with the stack running:
   1. `docker exec -it vaultwarden /vaultwarden hash` — enter a **strong admin passphrase** twice (this passphrase is what you use to open `/admin` afterward).
   2. Put the printed **`$argon2id$...`** string into `/opt/vaultwarden/.env` as **`ADMIN_TOKEN='...'`** (use **single quotes** around the PHC so `$` is not interpreted). See [Vaultwarden wiki — Secure the `ADMIN_TOKEN`](https://github.com/dani-garcia/vaultwarden/wiki/Enabling-admin-page#secure-the-admin_token).
   3. `cd /opt/vaultwarden && docker compose up -d`
@@ -1118,16 +1118,16 @@ These steps are shared between both automated and manual deployment methods. Ref
   - Set **`SIGNUPS_ALLOWED`** to **`false`** in **`docker-compose.yml`** on the VM (source of truth in this deployment; optional `.env` only if you add the variable there)
   - Restart stack: `cd /opt/vaultwarden && docker compose up -d`
   - Verify signups disabled *(**TDI iteration 5** `verify.sh` asserts `SIGNUPS_ALLOWED=false` and register API is not open)*
-- [ ] Test login from Bitwarden client with your newly created account
-- [ ] Verify WebSocket connection (check real-time sync in Bitwarden client)
-- [ ] Check container logs: `docker-compose logs -f`
-- [ ] Verify all containers running: `docker-compose ps` (all should show "Up")
+- [X] Test login from Bitwarden client with your newly created account
+- [X] Verify WebSocket connection (check real-time sync in Bitwarden client)
+- [X] Check container logs: `docker-compose logs -f`
+- [X] Verify all containers running: `docker-compose ps` (all should show "Up")
 
 **Backup Verification:**
-- [ ] Verify backup automation is configured (check crontab: `crontab -l`)
-- [ ] Verify health monitoring is configured (check crontab: `crontab -l`)
-- [ ] Test backup manually: `cd /opt/vaultwarden && ./scripts/backup.sh`
-- [ ] Verify backup in Google Drive: `rclone ls gdrive:vaultwarden-backups/`
+- [X] Verify backup automation is configured (check crontab: `crontab -l`)
+- [X] Verify health monitoring is configured (check crontab: `crontab -l`)
+- [X] Test backup manually: `cd /opt/vaultwarden && ./scripts/backup.sh`
+- [X] Verify backup in Google Drive: `rclone ls gdrive:vaultwarden-backups/`
 
 ### OS Updates Configuration (Optional)
 

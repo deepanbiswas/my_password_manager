@@ -543,7 +543,7 @@ For firewall configuration steps, see [plan.md](plan.md).
 
 - **Public Signups**: Disabled after initial admin account creation
 - **Admin Token**: Required for administrative operations
-- **Rate Limiting**: Implemented at reverse proxy level (50 requests/minute per IP)
+- **Rate Limiting**: Implemented at reverse proxy level (about 300 requests/minute per IP; enough for Bitwarden sync bursts)
 
 #### 4.3.2 Container Security
 

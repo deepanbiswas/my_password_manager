@@ -2,32 +2,32 @@
 # Target: TLS 1.2+, security headers, reverse proxy to Vaultwarden (WebSocket supported by default).
 
 {{DOMAIN_NAME}} {
-    encode gzip
+	encode gzip
 
-    tls {
-        protocols tls1.2 tls1.3
-    }
+	tls {
+		protocols tls1.2 tls1.3
+	}
 
-    # Per-IP rate limit (mholt/caddy-ratelimit); ~50 requests/minute
-    rate_limit {
-        zone vaultwarden_per_ip {
-            key {remote_host}
-            events 50
-            window 1m
-        }
-    }
+	# Per-IP rate limit (mholt/caddy-ratelimit). 300 requests/minute
+	rate_limit {
+		zone vaultwarden_per_ip {
+			key {remote_host}
+			events 300
+			window 1m
+		}
+	}
 
-    header {
-        Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
-        X-Content-Type-Options "nosniff"
-        X-Frame-Options "DENY"
-        Referrer-Policy "strict-origin-when-cross-origin"
-        Content-Security-Policy "default-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
-    }
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		Content-Security-Policy "default-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+	}
 
-    reverse_proxy vaultwarden:80
+	reverse_proxy vaultwarden:80
 }
 
 :80 {
-    redir https://{host}{uri} permanent
+	redir https://{host}{uri} permanent
 }
