@@ -63,6 +63,9 @@ private-keys/
 # Scratchpad (personal notes)
 scratchpad.md
 
+# Vibe-coding experience article (local / Confluence source; omit from repo if preferred)
+docs/vibe-coding-first-experience.md
+
 # Local GitHub secrets file for scripts/push-github-secrets.sh
 scripts/github-secrets.env
 scripts/.azure-github-credentials.json
