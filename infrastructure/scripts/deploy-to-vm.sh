@@ -129,6 +129,9 @@ chmod +x scripts/backup.sh
 if ! { crontab -l 2>/dev/null || true; } | grep -qF '/opt/vaultwarden/scripts/backup.sh'; then
   ({ crontab -l 2>/dev/null || true; echo '0 2 * * * cd /opt/vaultwarden && set -a && . ./.env && set +a && /opt/vaultwarden/scripts/backup.sh >> /var/log/vaultwarden-backup.log 2>&1'; }) | crontab -
 fi
+# Cron runs as the deploy user; /var/log/ is root-owned — create log file so redirection succeeds (same pattern as health log).
+sudo touch /var/log/vaultwarden-backup.log
+sudo chown "$(id -un):$(id -gn)" /var/log/vaultwarden-backup.log
 
 # Health check + logrotate (TDI iteration 7; templates under infrastructure/templates/)
 sed "s|{{DOMAIN}}|${DOMAIN}|g" infrastructure/templates/health-check.sh.template > scripts/health-check.sh
