@@ -36,7 +36,7 @@ CI/CD pipelines automate the deployment process, enabling one-command deployment
 
 - Set GitHub repository variable **`HOSTING_PROVIDER`** to `azure` (default behavior when unset) or `hetzner`.
 - **Hetzner**: add repository secret **`HCLOUD_TOKEN`** (Hetzner Cloud API token, Read & Write). Never commit it; for local runs use `export HCLOUD_TOKEN=...`. Rotate by revoking the old token in the Hetzner console and updating the GitHub secret.
-- See [migration guide](migration-azure-to-hetzner-tdi.md) for the full dual-cloud TDI plan.
+- See [Hetzner automated deployment (TDI)](hetzner-automated-deployment.md) for prerequisites, iteration order, and what CI does vs local `verify.sh`.
 
 ### Deploy workflow modes and secrets
 

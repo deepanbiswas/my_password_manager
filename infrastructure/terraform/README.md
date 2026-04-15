@@ -41,4 +41,4 @@ export TERRAFORM_DIR="$PWD/infrastructure/terraform/azure"
 cd "$TERRAFORM_DIR" && ../../iterations/iteration-1-infrastructure/verify.sh
 ```
 
-See [docs/migration-azure-to-hetzner-tdi.md](../../docs/migration-azure-to-hetzner-tdi.md) for the full migration plan.
+See [docs/hetzner-automated-deployment.md](../../docs/hetzner-automated-deployment.md) for prerequisites and TDI iterations 1–7 on Hetzner.

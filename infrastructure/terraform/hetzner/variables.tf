@@ -6,13 +6,13 @@ variable "environment" {
 
 variable "server_type" {
   type        = string
-  description = "Hetzner Cloud server type (e.g. cx22 — 2 vCPU, 4 GB RAM)"
-  default     = "cx22"
+  description = "Hetzner Cloud server type (e.g. cax11 — ARM shared vCPU, 4 GB RAM; cx22 — AMD x86)"
+  default     = "cax11"
 }
 
 variable "location" {
   type        = string
-  description = "Hetzner Cloud location (nbg1, fsn1, hel1, ash, hil, …)"
+  description = "Hetzner Cloud location (e.g. nbg1, hel1, fsn1 for cax11). If API returns 'server location disabled', try another EU location or check status.hetzner.com. sin has no ARM shared."
   default     = "nbg1"
 }
 

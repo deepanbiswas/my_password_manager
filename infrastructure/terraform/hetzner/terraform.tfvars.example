@@ -2,7 +2,8 @@
 # Run from this directory: terraform init && terraform plan
 
 environment         = "production"
-server_type         = "cx22"
+server_type         = "cax11"
+# nbg1 / hel1 / fsn1 typically offer cax11. If apply errors with "server location disabled", switch location.
 location            = "nbg1"
 admin_username      = "root"
 ssh_public_key_path = "~/.ssh/id_rsa_vaultwarden.pub"

@@ -5,7 +5,7 @@ This directory contains detailed documentation and guides for the self-hosted pa
 ## Documentation Files
 
 ### [Automated deployment prerequisites](prerequisites-checklist.md)
-- Checklist for [plan.md](../plan.md) prerequisites: Azure, domain/DNS, GitHub, Terraform, Azure CLI, SSH keys, Google Drive / Rclone
+- **Common** (GitHub, Terraform, SSH, domain/DNS, Google Drive / Rclone) plus **Azure-only** or **Hetzner-only** sections; aligned with [plan.md](../plan.md) prerequisites
 - Verification commands and suggested order
 
 ### [Rclone: Google Drive for Vaultwarden backups](rclone-google-drive.md)
@@ -25,8 +25,8 @@ This directory contains detailed documentation and guides for the self-hosted pa
 - Size limits and optimization
 - Backup considerations
 
-### [Azure → Hetzner migration (TDI)](migration-azure-to-hetzner-tdi.md)
-- Dual Terraform roots (`infrastructure/terraform/azure` and `hetzner`), `HOSTING_PROVIDER`, `HCLOUD_TOKEN`, and iteration checklist
+### [Hetzner automated deployment (TDI)](hetzner-automated-deployment.md)
+- Prerequisites, Terraform + CI, then **Iterations 1–7** with steps and `verify.sh` commands; optional Azure cutover
 
 ### [Azure VM deallocate and start](azure-vm-deallocate-and-start.md)
 - Shut down the VM for cost savings (`az vm deallocate`) and start it again (`az vm start`)

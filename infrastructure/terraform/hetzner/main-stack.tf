@@ -1,6 +1,9 @@
 locals {
   ssh_public_key = trimspace(file(pathexpand(var.ssh_public_key_path)))
 
+  # Hetzner cax* = Ampere ARM; cx/ccx/cpx and typical x86 SKUs need x86 image.
+  ubuntu_image_architecture = startswith(var.server_type, "cax") ? "arm" : "x86"
+
   effective_domain = var.domain != "" ? var.domain : "https://${hcloud_server.main.ipv4_address}"
 
   common_labels = {
@@ -13,7 +16,9 @@ locals {
 }
 
 data "hcloud_image" "ubuntu" {
-  name = "ubuntu-22.04"
+  name                = "ubuntu-22.04"
+  with_architecture   = local.ubuntu_image_architecture
+  most_recent         = true
 }
 
 resource "hcloud_ssh_key" "vaultwarden" {

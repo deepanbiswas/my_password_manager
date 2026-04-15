@@ -23,7 +23,7 @@ This repository contains the complete technical specification for a self-hosted 
 
 - **[spec.md](spec.md)** - Complete technical specification (essential content)
 - **[plan.md](plan.md)** - Deployment execution checklist (quick reference)
-- **[docs/prerequisites-checklist.md](docs/prerequisites-checklist.md)** - Automated deployment prerequisites (Azure, DNS, GitHub, Terraform, CLI, SSH, Google Drive)
+- **[docs/prerequisites-checklist.md](docs/prerequisites-checklist.md)** - Deployment prerequisites: common (GitHub, Terraform, SSH, DNS, backups) plus Azure-only or Hetzner-only sections
 - **[auto_deploy_iterations.md](auto_deploy_iterations.md#git-workflow-and-branching-github)** - TDI automated deployment iterations, Git branch-per-iteration workflow, and merge criteria
 - **[.env.example](.env.example)** - Configuration template with all variables
 

@@ -235,7 +235,7 @@ This checklist supports two deployment approaches:
   - [X] `DOMAIN`
   - [X] `SSH_PRIVATE_KEY`
   - [X] `VM_USERNAME`
-- [X] Repository variable **`HOSTING_PROVIDER`**: `azure` (default when unset) or `hetzner` — see [docs/cicd-pipelines.md](docs/cicd-pipelines.md) and [docs/migration-azure-to-hetzner-tdi.md](docs/migration-azure-to-hetzner-tdi.md)
+- [X] Repository variable **`HOSTING_PROVIDER`**: `azure` (default when unset) or `hetzner` — see [docs/cicd-pipelines.md](docs/cicd-pipelines.md) and [docs/hetzner-automated-deployment.md](docs/hetzner-automated-deployment.md)
 - [X] *Push code to trigger pipeline*
 - [X] *Monitor pipeline execution*
 

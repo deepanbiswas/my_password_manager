@@ -1,0 +1,9 @@
+# Relaxed defaults for GitHub Actions and long shell blocks in workflows.
+extends: default
+
+rules:
+  document-start: disable
+  truthy: disable
+  line-length:
+    max: 240
+    allow-non-breakable-inline-mappings: true

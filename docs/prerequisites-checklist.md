@@ -1,72 +1,44 @@
-# Automated deployment prerequisites checklist
+# Deployment prerequisites checklist
 
-This document helps you comply with **[plan.md](../plan.md) → Automated Deployment → Prerequisites**. Estimated one-time setup: **30–60 minutes** for accounts and tools (DNS and full deploy add more later).
+This document lists what you need **before** [plan.md](../plan.md) automated deployment and before running TDI `verify.sh` scripts against a VM. Work through **Common** first, then **only the provider you use** (Azure *or* Hetzner).
 
-**Related:** [Cost analysis](cost-analysis.md) (₹4,200/month assumption), [Terraform guide](terraform-guide.md), [CI/CD pipelines](cicd-pipelines.md).
-
----
-
-## 1. Azure account with subscription and ₹4,200/month credits
-
-**Comply:** You have an active Azure subscription you can deploy to. The **₹4,200/month** figure is a **budget assumption** from cost docs—not something you enable in Azure.
-
-- [X] Sign in to [Azure Portal](https://portal.azure.com) and confirm at least one **Subscription** (Pay-As-You-Go, credits, MSDN, etc.).
-- [X] Confirm you can create resource groups and VMs (e.g. **Owner** or **Contributor** on the subscription or resource group).
-- [X ] Optional: set a **budget / cost alert** in Azure Cost Management so spend stays within your target (see [cost-analysis.md](cost-analysis.md)).
-
-**Verify (after [Azure CLI](#5-azure-cli-installed-and-configured) is installed):**
-
-```bash
-az account list -o table
-az account show
-```
-
-**Notes:** Track spend against your credit limit; pick a VM SKU in `terraform.tfvars` that matches [cost-analysis.md](cost-analysis.md).
+**Related:** [Terraform guide](terraform-guide.md), [CI/CD pipelines](cicd-pipelines.md), [Hetzner automated deployment (TDI)](hetzner-automated-deployment.md), [cost-analysis.md](cost-analysis.md) (Azure ₹4,200/month assumption).
 
 ---
 
-## 2. Domain name registered and DNS access available
-*NOTE: Using Azure's FQDN for now*
+## How to use this checklist
 
-**Comply:** You can edit DNS for a hostname that will point to the Vaultwarden VM.
+1. Complete every item in **Common prerequisites** (tools, keys, repo).
+2. Complete **either** **Azure-only** *or* **Hetzner-only** — not both unless you operate two stacks.
+3. Use the **Suggested order** at the end as a single pass through the lists.
 
-- [ ] Domain registered **or** existing domain you control.
-- [ ] Access to your DNS provider (registrar or DNS host) to create **A** (and optionally **AAAA**) records.
-- [ ] After `terraform apply`, set an **A record** from your chosen hostname (e.g. `vault.example.com`) to `terraform output -raw vm_public_ip`. Follow **[plan.md](../plan.md) → Common Configuration Steps → DNS Configuration** (also referenced in Automated Deployment Step 3).
-
-**Verify (after DNS is set):**
-
-```bash
-dig +short vault.yourdomain.com
-# or
-nslookup vault.yourdomain.com
-```
+Estimated one-time setup: **about 30–60 minutes** for accounts and tools (DNS and full deploy add more later).
 
 ---
 
-## 3. GitHub account (for CI/CD) or Azure DevOps account
+## Common prerequisites
 
-**Comply:** A Git host and automation for this repo (this project uses **GitHub Actions** for workflows under `.github/workflows/`).
+These apply to Vaultwarden on **any** cloud VM managed from this repo.
 
-- [X] GitHub (or Azure DevOps) account created.
-- [X] Repository contains this project; remote configured (`git remote -v`).
-- [X] **Actions** enabled: repo **Settings → Actions → General** (allow Actions).
-- [X] For future deploy pipelines: plan **repository secrets** per [plan.md](../plan.md) Step 2 and [cicd-pipelines.md](cicd-pipelines.md) (Azure service principal, SSH private key, `DOMAIN`, etc.).
+### 1. Git repository and GitHub Actions
+
+**Comply:** You can push this repo and run workflows under [.github/workflows/](../.github/workflows/).
+
+- [ ] **Git**: Remote configured (`git remote -v` shows `origin`).
+- [ ] **GitHub (or compatible host)**: Repository exists; **Actions** enabled: **Settings → Actions → General**.
+- [ ] **CI/CD secrets/variables** (when you use automated deploy): see [cicd-pipelines.md](cicd-pipelines.md) — plan `SSH_PRIVATE_KEY`, `DOMAIN`, `VM_USERNAME`, etc.; provider-specific items are in Azure-only / Hetzner-only below.
 
 **Verify:**
 
 ```bash
 git remote -v
-# On GitHub: open Actions tab and confirm workflows can run on push/PR
 ```
 
----
+### 2. Terraform (local)
 
-## 4. Terraform installed locally (>= 1.5.0)
+**Comply:** Terraform **≥ 1.5.0** (matches `required_version` in `infrastructure/terraform/azure/main.tf` and `infrastructure/terraform/hetzner/main.tf`).
 
-**Comply:** `terraform version` shows **v1.5.0 or newer** (matches `required_version` in `infrastructure/terraform/azure/main.tf` and `hetzner/main.tf`).
-
-- [X] Install from [HashiCorp Terraform install](https://developer.hashicorp.com/terraform/install).
+- [ ] Install from [HashiCorp: Install Terraform](https://developer.hashicorp.com/terraform/install).
 
 **macOS (Homebrew) example:**
 
@@ -81,22 +53,87 @@ brew install hashicorp/tap/terraform
 terraform version
 ```
 
----
+### 3. SSH key pair (for VM access)
 
-## 5. Azure CLI installed and configured
+**Comply:** A key pair exists; the **public** key is passed into Terraform via `ssh_public_key_path` in **`terraform.tfvars`** under the root you use — `infrastructure/terraform/azure/` or `infrastructure/terraform/hetzner/` (see [terraform-guide.md](terraform-guide.md)).
 
-**Comply:** `az` works and targets the subscription you use for Terraform.
-
-- [X] Install [Azure CLI](https://learn.microsoft.com/cli/azure/install-azure-cli).
-
-**macOS (Homebrew) example:**
+- [ ] Generate a key (example RSA):
 
 ```bash
+ssh-keygen -t rsa -b 4096 -f ~/.ssh/id_rsa_vaultwarden -C "vaultwarden-vm"
+```
+
+- [ ] Copy the correct **`terraform.tfvars.example`** → **`terraform.tfvars`** (gitignored) under **`azure/`** or **`hetzner/`** and set:
+
+```hcl
+ssh_public_key_path = "~/.ssh/id_rsa_vaultwarden.pub"
+```
+
+- [ ] **Never** commit private keys, `terraform.tfvars`, or cloud API tokens (see [.gitignore](../.gitignore)).
+
+**Verify:**
+
+```bash
+ssh-keygen -lf ~/.ssh/id_rsa_vaultwarden.pub
+```
+
+### 4. Domain name and DNS (production HTTPS)
+
+**Comply:** You can point a hostname at the VM’s public IP **after** `terraform apply`, or you accept a **temporary** URL (Azure can expose an `*.cloudapp.azure.com` FQDN via `dns_label`; Hetzner often uses a custom domain or `https://<ipv4>` from Terraform outputs until DNS exists — see [plan.md](../plan.md) DNS steps).
+
+- [ ] Either a domain you control **or** a documented decision to use the provider’s temporary hostname / IP-only URL for testing.
+- [ ] Access to your DNS provider to create **A** (and optionally **AAAA**) records when you cut over.
+- [ ] After you have `vm_public_ip`, set DNS per **[plan.md](../plan.md) → Common Configuration Steps → DNS Configuration**.
+
+**Verify (after DNS is set):**
+
+```bash
+dig +short vault.example.com
+# or
+nslookup vault.example.com
+```
+
+### 5. Google Drive and backups (application default)
+
+**Comply:** Encrypted backups use **Rclone** + Google Drive per [spec.md](../spec.md); configure Rclone **on the VM** before backup automation is relied on (not required for the very first `terraform apply`).
+
+- [ ] Google account with Drive access; **2FA** enabled on that account (recommended).
+- [ ] Later on the VM: [plan.md](../plan.md) → Rclone Configuration and [rclone-google-drive.md](rclone-google-drive.md).
+
+**Later on the VM:**
+
+```bash
+rclone version
+rclone config   # see docs/rclone-google-drive.md
+```
+
+---
+
+## Azure-only prerequisites
+
+Complete this section if your infrastructure is **Microsoft Azure** (`infrastructure/terraform/azure/`).
+
+### A1. Azure subscription and permissions
+
+**Comply:** You can create resource groups, VMs, and networking in a subscription you use for this project. The **₹4,200/month** figure in [cost-analysis.md](cost-analysis.md) is a **budget assumption**, not a portal toggle.
+
+- [ ] Sign in to [Azure Portal](https://portal.azure.com) and confirm at least one **Subscription**.
+- [ ] Your account can deploy infra (e.g. **Owner** or **Contributor** on the subscription or target resource group).
+- [ ] Optional: set a **budget / cost alert** in Azure Cost Management (see [cost-analysis.md](cost-analysis.md)).
+
+### A2. Azure CLI and login
+
+**Comply:** `az` targets that subscription for **local** `terraform plan/apply`. CI/CD uses a **service principal** via `AZURE_CREDENTIALS` (see [cicd-pipelines.md](cicd-pipelines.md)), not necessarily your personal login.
+
+- [ ] Install [Azure CLI](https://learn.microsoft.com/cli/azure/install-azure-cli).
+
+```bash
+# macOS (Homebrew) example
 brew install azure-cli
 ```
 
-- [X] Sign in: `az login`
-- [X] Select subscription: `az account set --subscription "<id-or-name>"`
+- [ ] `az login`
+- [ ] `az account set --subscription "<id-or-name>"`
 
 **Verify:**
 
@@ -105,74 +142,93 @@ az account show
 az group list -o table
 ```
 
-**Note:** Local `terraform apply` with user credentials uses this login. CI/CD typically uses a **service principal** (secrets in GitHub), not your personal `az login`.
+### A3. Terraform root and variables (Azure)
+
+**Comply:** State and variables live under the Azure root only.
+
+- [ ] `cd infrastructure/terraform/azure`
+- [ ] `cp terraform.tfvars.example terraform.tfvars` and edit: `location`, `vm_size`, `admin_username`, `dns_label` and/or `domain`, `ssh_public_key_path`.
+- [ ] `terraform init && terraform plan` (read-only check before apply).
+
+### A4. GitHub deploy (Azure path)
+
+**Comply:** Repository variable **`HOSTING_PROVIDER`** unset or **`azure`** so [.github/workflows/deploy.yml](../.github/workflows/deploy.yml) runs **terraform-plan-azure** / **terraform-apply-azure** when `AZURE_CREDENTIALS` is set.
+
+- [ ] Secrets per [cicd-pipelines.md](cicd-pipelines.md): `AZURE_CREDENTIALS`, `DOMAIN`, `SSH_PRIVATE_KEY`, `VM_USERNAME`, etc.
 
 ---
 
-## 6. SSH key pair generated
+## Hetzner-only prerequisites
 
-**Comply:** A public key is referenced by `ssh_public_key_path` in `infrastructure/terraform/azure/terraform.tfvars` or `hetzner/terraform.tfvars` (copy from the matching `terraform.tfvars.example`).
+Complete this section if your infrastructure is **Hetzner Cloud** (`infrastructure/terraform/hetzner/`).
 
-- [X] Generate a key (RSA):
+### H1. Hetzner Cloud account and project
 
-```bash
-ssh-keygen -t rsa -b 4096 -f ~/.ssh/id_rsa_vaultwarden -C "vaultwarden-vm"
-```
+**Comply:** You have access to [Hetzner Cloud Console](https://console.hetzner.com/) and a **project** where servers will be created.
 
-- [X] Copy `terraform.tfvars.example` to `terraform.tfvars` (gitignored) and set:
+- [ ] Account active and billing/payment method acceptable to you.
+- [ ] Know which **location** you will use (e.g. `nbg1`, `fsn1`) — set in `terraform.tfvars` as `location`.
 
-```hcl
-ssh_public_key_path = "~/.ssh/id_rsa_vaultwarden.pub"
-```
+### H2. Hetzner API token (secret)
 
-Use `pathexpand`-friendly paths; Terraform resolves `~` via `pathexpand` in `azure.tf`.
+**Comply:** Terraform’s `hcloud` provider reads **`HCLOUD_TOKEN`** from the environment — **never** commit it.
 
-- [ ] **Never** commit private keys or `terraform.tfvars` (see [.gitignore](../.gitignore)).
+- [ ] In the console: **Security → API tokens** → create token with **Read & Write** for the target project.
+- [ ] **Local:** `export HCLOUD_TOKEN='…'` in the shell where you run Terraform / `hcloud`.
+- [ ] **GitHub Actions:** repository secret **`HCLOUD_TOKEN`** (exact name; see [cicd-pipelines.md](cicd-pipelines.md)).
+- [ ] Optional: store a copy in your password manager for rotation.
 
-**Verify:**
+**Rotate:** Revoke the old token in Hetzner, create a new one, update `export` / GitHub secret.
 
-```bash
-ssh-keygen -lf ~/.ssh/id_rsa_vaultwarden.pub
-```
+### H3. Hetzner CLI (`hcloud`) for local checks
 
----
+**Comply:** [iterations/iteration-1-infrastructure/verify.sh](../iterations/iteration-1-infrastructure/verify.sh) uses **`hcloud server describe`** when `cloud_provider` is Hetzner.
 
-## 7. Google Drive account ready for backup storage
+- [ ] Install [Hetzner CLI](https://github.com/hetznercloud/cli) (`hcloud`).
+- [ ] With `HCLOUD_TOKEN` set: `hcloud server list` (or `hcloud context` if you use contexts).
 
-**Comply:** A Google account with Drive access for **encrypted** backups via Rclone (see [spec.md](../spec.md) and [plan.md](../plan.md) mapping for 2FA).
+### H4. Terraform root and variables (Hetzner)
 
-- [ ] Google account available; enable **2FA** on the account (recommended for Rclone/Google security).
-- [ ] **Rclone** on the VM is configured later: follow **[plan.md](../plan.md) → Common Configuration Steps → Rclone Configuration** before backup automation expects a remote (Automated Deployment Step 3).
+**Comply:** State and variables live under the Hetzner root only.
 
-**Later on the VM (after deploy):**
+- [ ] `cd infrastructure/terraform/hetzner`
+- [ ] `cp terraform.tfvars.example terraform.tfvars` and edit: `location`, `server_type`, `admin_username` (often **`root`** for Ubuntu cloud images), `domain`, `ssh_public_key_path`, optionally **`ssh_allowed_cidr`** to restrict SSH.
+- [ ] `export HCLOUD_TOKEN='…'` then `terraform init && terraform plan`.
 
-```bash
-rclone version
-rclone config   # create remote (see docs/rclone-google-drive.md)
-```
+### H5. GitHub deploy (Hetzner path)
+
+**Comply:** **`HOSTING_PROVIDER=hetzner`** selects **terraform-plan-hetzner** / **terraform-apply-hetzner** in deploy.yml.
+
+- [ ] Repository **variable** **`HOSTING_PROVIDER`** = `hetzner` (**Settings → Secrets and variables → Actions → Variables**).
+- [ ] Repository **secret** **`HCLOUD_TOKEN`** set.
+- [ ] **`VM_USERNAME`** secret matches the Linux user Terraform uses (often `root` on Hetzner Ubuntu — must match SSH and container deploy expectations).
 
 ---
 
 ## Suggested order
 
-1. Azure + GitHub accounts and repo access  
-2. Install Terraform and Azure CLI; run `az login`  
-3. Generate SSH key; create `terraform.tfvars` with `ssh_public_key_path` and `domain`  
-4. Confirm domain/DNS control; create A record **after** you have the VM public IP  
-5. Google account + 2FA; configure Rclone when the deployment guide reaches that step  
+**Everyone (common):**  
+1. Git remote + Actions enabled → 2. `terraform version` → 3. SSH key + `terraform.tfvars` in **your** root (`azure/` or `hetzner/`) → 4. Plan domain/DNS strategy → 5. (Later) Google 2FA + Rclone on VM.
+
+**If Azure:**  
+A1 subscription → A2 `az login` → A3 `terraform init` in `azure/` → A4 GitHub secrets + `HOSTING_PROVIDER` default/azure.
+
+**If Hetzner:**  
+H1 account → H2 `HCLOUD_TOKEN` → H3 `hcloud` → H4 `terraform init` in `hetzner/` → H5 `HOSTING_PROVIDER` + `HCLOUD_TOKEN` + `VM_USERNAME` in GitHub.
 
 ---
 
 ## Local verification log (optional)
 
-Fill in after you run commands on **your** machine:
-
-| Prerequisite | Command / action | Date / result |
-|--------------|------------------|---------------|
-| Azure subscription | `az account show` | |
-| Domain / DNS | Registrar login; `dig` / `nslookup` | |
-| GitHub / Actions | `git remote -v`; Actions tab | |
-| Terraform | `terraform version` | |
-| Azure CLI | `az account show` | |
-| SSH key | `ls ~/.ssh/*.pub`; `terraform.tfvars` path | |
-| Google + Rclone | 2FA on; `rclone config` on VM later | |
+| Area | Check | Command / note | Date / result |
+|------|--------|----------------|----------------|
+| Common | Terraform | `terraform version` | |
+| Common | SSH pubkey | `ssh-keygen -lf …pub` | |
+| Common | Git | `git remote -v` | |
+| Common | DNS | `dig` / `nslookup` after A record | |
+| Azure | Subscription | `az account show` | |
+| Azure | Terraform | `cd infrastructure/terraform/azure && terraform validate` | |
+| Hetzner | Token (not pasted in log) | `HCLOUD_TOKEN` set / GitHub secret | |
+| Hetzner | CLI | `hcloud server list` | |
+| Hetzner | Terraform | `cd infrastructure/terraform/hetzner && terraform validate` | |
+| Common (later) | Rclone | On VM: `rclone config` | |
