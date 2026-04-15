@@ -16,9 +16,9 @@ locals {
 }
 
 data "hcloud_image" "ubuntu" {
-  name                = "ubuntu-22.04"
-  with_architecture   = local.ubuntu_image_architecture
-  most_recent         = true
+  name              = "ubuntu-22.04"
+  with_architecture = local.ubuntu_image_architecture
+  most_recent       = true
 }
 
 resource "hcloud_ssh_key" "vaultwarden" {
