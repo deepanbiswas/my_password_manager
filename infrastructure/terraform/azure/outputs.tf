@@ -32,3 +32,8 @@ output "vm_name" {
   description = "Azure VM resource name"
   value       = azurerm_linux_virtual_machine.main.name
 }
+
+output "cloud_provider" {
+  description = "IaC target for TDI verify scripts (azure | hetzner)"
+  value       = "azure"
+}

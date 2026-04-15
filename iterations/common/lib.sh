@@ -66,9 +66,14 @@ resolve_terraform_dir() {
   local script_dir repo_root
   script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
   repo_root="$(cd "$script_dir/../.." && pwd)"
-  local candidate="${repo_root}/infrastructure/terraform"
-  if [[ -d "$candidate" ]] && [[ -f "$candidate/main.tf" ]]; then
-    echo "$candidate"
+  local azure_root="${repo_root}/infrastructure/terraform/azure"
+  if [[ -d "$azure_root" ]] && [[ -f "$azure_root/main.tf" ]]; then
+    echo "$azure_root"
+    return 0
+  fi
+  local legacy="${repo_root}/infrastructure/terraform"
+  if [[ -d "$legacy" ]] && [[ -f "$legacy/main.tf" ]]; then
+    echo "$legacy"
     return 0
   fi
   return 1
@@ -77,7 +82,7 @@ resolve_terraform_dir() {
 verify_terraform_state() {
   local tf_dir
   if ! tf_dir="$(resolve_terraform_dir)"; then
-    print_warning "Could not resolve Terraform directory; set TERRAFORM_DIR or run from infrastructure/terraform"
+    print_warning "Could not resolve Terraform directory; set TERRAFORM_DIR or run from infrastructure/terraform/azure (or hetzner)"
     return 1
   fi
   if [[ ! -d "$tf_dir/.terraform" ]] && [[ ! -f "$tf_dir/terraform.tfstate" ]]; then
@@ -150,6 +155,23 @@ load_vm_config() {
   DOMAIN_NAME="${DOMAIN_NAME#http://}"
   export DOMAIN_NAME
   return 0
+}
+
+# After load_vm_config / load_vm_config_from_env (RESOURCE_GROUP, VM_NAME set when applicable).
+resolve_cloud_provider() {
+  local tf_dir raw=""
+  if tf_dir="$(resolve_terraform_dir 2>/dev/null)"; then
+    raw="$(cd "$tf_dir" && terraform output -raw cloud_provider 2>/dev/null)" || true
+    if [[ -n "$raw" ]]; then
+      echo "$raw"
+      return 0
+    fi
+  fi
+  if [[ -n "${RESOURCE_GROUP:-}" ]]; then
+    echo "azure"
+  else
+    echo "hetzner"
+  fi
 }
 
 ssh_vm() {

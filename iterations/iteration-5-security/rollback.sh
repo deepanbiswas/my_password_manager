@@ -9,7 +9,7 @@ source "${SCRIPT_DIR}/../common/lib.sh"
 print_header "Iteration 5 rollback: re-enable signups"
 
 if ! verify_terraform_state; then
-  exit_with_error "Run from repo with Terraform state (infrastructure/terraform)"
+  exit_with_error "Run from repo with Terraform state (infrastructure/terraform/azure or hetzner, or set TERRAFORM_DIR)"
 fi
 
 # shellcheck source=../common/config.sh

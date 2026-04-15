@@ -1,0 +1,14 @@
+# Copy to terraform.tfvars (gitignored). Set HCLOUD_TOKEN in the environment before plan/apply.
+# Run from this directory: terraform init && terraform plan
+
+environment         = "production"
+server_type         = "cx22"
+location            = "nbg1"
+admin_username      = "root"
+ssh_public_key_path = "~/.ssh/id_rsa_vaultwarden.pub"
+
+# Optional: full Vaultwarden URL; if empty, domain output becomes https://<server_ipv4>
+domain = ""
+
+# Restrict SSH to your IP when possible, e.g. "203.0.113.10/32"
+ssh_allowed_cidr = "0.0.0.0/0"

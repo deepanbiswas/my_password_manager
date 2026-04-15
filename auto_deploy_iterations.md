@@ -53,7 +53,7 @@ This document provides a Test-Driven Infrastructure (TDI) approach for deploying
 4. **Create iteration scripts as needed** - For each iteration, create the `verify.sh` and `rollback.sh` scripts based on the requirements listed in that iteration's section
 5. **Run `verify.sh` after each step** - The test script validates that the iteration completed successfully
    - Scripts are located in `iterations/iteration-X-*/verify.sh`
-   - Run from the terraform directory: `cd infrastructure/terraform && ../../iterations/iteration-1-infrastructure/verify.sh`
+   - Run from a Terraform root: `cd infrastructure/terraform/azure && ../../iterations/iteration-1-infrastructure/verify.sh` (or `hetzner/`; or `export TERRAFORM_DIR=...` from repo root)
 6. **Do not proceed to next iteration** until the current iteration's verification passes
 7. **Reference plan.md** - All execution steps reference the "Automated Deployment (Recommended)" section in [plan.md](plan.md)
 8. **Use rollback scripts if needed** - Each iteration has a `rollback.sh` script to revert changes if verification fails

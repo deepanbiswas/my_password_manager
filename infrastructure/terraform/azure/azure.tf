@@ -169,7 +169,7 @@ resource "azurerm_linux_virtual_machine" "main" {
 
   disable_password_authentication = true
 
-  custom_data = base64encode(templatefile("${path.module}/scripts/cloud-init.sh", {
+  custom_data = base64encode(templatefile("${path.module}/../shared/scripts/cloud-init.sh", {
     admin_username = var.admin_username
   }))
 }

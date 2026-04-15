@@ -1,15 +1,10 @@
-# Deploy workflow (conditional Azure + VM-only path + light skip gate).
-#
-# Triggers: push to main (paths below) or workflow_dispatch.
+# Deploy workflow: Terraform (Azure or Hetzner per HOSTING_PROVIDER) + VM deploy + light skip gate.
 #
 # Modes:
-# - Full (AZURE_CREDENTIALS set): terraform-plan → terraform-apply → optional deploy-to-vm.sh
-# - VM-only (no Azure, but VM_PUBLIC_IP + VM_USERNAME + DOMAIN + SSH_PRIVATE_KEY): vm-deploy job
-# - Skipped (no Azure and incomplete VM secrets): deploy-notice exits 0 (no fake Azure login)
-#
-# Light gate (Option B): before deploy-to-vm.sh, run verify-vm-deployment.sh and
-# iterations/iteration-3-services/verify.sh. If both pass, skip deploy. Iteration 4/5 verifies
-# are not part of this gate (see docs/cicd-pipelines.md).
+# - Terraform Azure: vars.HOSTING_PROVIDER empty or "azure", and AZURE_CREDENTIALS set
+# - Terraform Hetzner: HOSTING_PROVIDER=hetzner and HCLOUD_TOKEN set
+# - VM-only: neither Terraform path runs, but VM_PUBLIC_IP + VM_USERNAME + DOMAIN + SSH_PRIVATE_KEY set
+# - Skipped: no Terraform path and incomplete VM secrets → deploy-notice
 
 name: Deploy
 
@@ -40,28 +35,39 @@ permissions:
   contents: read
 
 jobs:
-  # ---------------------------------------------------------------------------
-  # Config: decide which path runs (never needs Azure secrets to evaluate)
-  # ---------------------------------------------------------------------------
   deploy-config:
     name: deploy-config
     runs-on: ubuntu-latest
     outputs:
-      has_azure: ${{ steps.flags.outputs.has_azure }}
+      hosting_provider: ${{ steps.flags.outputs.hosting_provider }}
       has_vm_secrets: ${{ steps.flags.outputs.has_vm_secrets }}
+      run_terraform_azure: ${{ steps.flags.outputs.run_terraform_azure }}
+      run_terraform_hetzner: ${{ steps.flags.outputs.run_terraform_hetzner }}
     steps:
       - id: flags
+        env:
+          AZURE_CREDENTIALS: ${{ secrets.AZURE_CREDENTIALS }}
+          HCLOUD_TOKEN: ${{ secrets.HCLOUD_TOKEN }}
         run: |
-          echo "has_azure=${{ secrets.AZURE_CREDENTIALS != '' }}" >> "$GITHUB_OUTPUT"
+          set -euo pipefail
+          hp='${{ vars.HOSTING_PROVIDER }}'
+          if [ -z "$hp" ]; then hp=azure; fi
+          echo "hosting_provider=$hp" >> "$GITHUB_OUTPUT"
           echo "has_vm_secrets=${{ secrets.VM_PUBLIC_IP != '' && secrets.VM_USERNAME != '' && secrets.DOMAIN != '' && secrets.SSH_PRIVATE_KEY != '' }}" >> "$GITHUB_OUTPUT"
+          ra=false
+          rh=false
+          if [ "$hp" = "azure" ] && [ -n "${AZURE_CREDENTIALS:-}" ]; then ra=true; fi
+          if [ "$hp" = "hetzner" ] && [ -n "${HCLOUD_TOKEN:-}" ]; then rh=true; fi
+          echo "run_terraform_azure=$ra" >> "$GITHUB_OUTPUT"
+          echo "run_terraform_hetzner=$rh" >> "$GITHUB_OUTPUT"
 
   # ---------------------------------------------------------------------------
-  # Iteration 1 (Terraform / Azure): plan + apply + VM deploy
+  # Terraform — Azure
   # ---------------------------------------------------------------------------
-  terraform-plan:
-    name: terraform-plan
+  terraform-plan-azure:
+    name: terraform-plan-azure
     needs: deploy-config
-    if: needs.deploy-config.outputs.has_azure == 'true'
+    if: needs.deploy-config.outputs.run_terraform_azure == 'true'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -98,19 +104,19 @@ jobs:
           echo "TF_VAR_ssh_public_key_path=${GITHUB_WORKSPACE}/.ci-ssh/id_rsa.pub" >> "$GITHUB_ENV"
 
       - name: Terraform Init
-        working-directory: infrastructure/terraform
+        working-directory: infrastructure/terraform/azure
         run: terraform init -input=false
         env:
           TF_VAR_domain: ${{ secrets.DOMAIN }}
 
       - name: Terraform Validate
-        working-directory: infrastructure/terraform
+        working-directory: infrastructure/terraform/azure
         run: terraform validate
         env:
           TF_VAR_domain: ${{ secrets.DOMAIN }}
 
       - name: Terraform Plan
-        working-directory: infrastructure/terraform
+        working-directory: infrastructure/terraform/azure
         run: terraform plan -no-color -out=tfplan
         env:
           TF_VAR_domain: ${{ secrets.DOMAIN }}
@@ -118,16 +124,16 @@ jobs:
       - name: Upload Terraform plan
         uses: actions/upload-artifact@v4
         with:
-          name: tfplan
-          path: infrastructure/terraform/tfplan
+          name: tfplan-azure
+          path: infrastructure/terraform/azure/tfplan
           if-no-files-found: error
 
-  terraform-apply:
-    name: terraform-apply
+  terraform-apply-azure:
+    name: terraform-apply-azure
     needs:
       - deploy-config
-      - terraform-plan
-    if: needs.deploy-config.outputs.has_azure == 'true'
+      - terraform-plan-azure
+    if: needs.deploy-config.outputs.run_terraform_azure == 'true'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -155,8 +161,8 @@ jobs:
       - name: Download Terraform plan
         uses: actions/download-artifact@v4
         with:
-          name: tfplan
-          path: infrastructure/terraform
+          name: tfplan-azure
+          path: infrastructure/terraform/azure
 
       - name: Prepare SSH public key for Terraform
         env:
@@ -170,20 +176,20 @@ jobs:
           echo "TF_VAR_ssh_public_key_path=${GITHUB_WORKSPACE}/.ci-ssh/id_rsa.pub" >> "$GITHUB_ENV"
 
       - name: Terraform Init
-        working-directory: infrastructure/terraform
+        working-directory: infrastructure/terraform/azure
         run: terraform init -input=false
         env:
           TF_VAR_domain: ${{ secrets.DOMAIN }}
 
       - name: Terraform Apply
-        working-directory: infrastructure/terraform
+        working-directory: infrastructure/terraform/azure
         run: terraform apply -auto-approve tfplan
         env:
           TF_VAR_domain: ${{ secrets.DOMAIN }}
 
       - name: Get VM Public IP
         id: vmip
-        working-directory: infrastructure/terraform
+        working-directory: infrastructure/terraform/azure
         run: |
           echo "public_ip=$(terraform output -raw vm_public_ip)" >> "$GITHUB_OUTPUT"
 
@@ -198,7 +204,7 @@ jobs:
           VM_PUBLIC_IP: ${{ steps.vmip.outputs.public_ip }}
           VM_USERNAME: ${{ secrets.VM_USERNAME }}
           DOMAIN: ${{ secrets.DOMAIN }}
-          TERRAFORM_DIR: ${{ github.workspace }}/infrastructure/terraform
+          TERRAFORM_DIR: ${{ github.workspace }}/infrastructure/terraform/azure
           GITHUB_ACTIONS: "true"
         run: |
           set -euo pipefail
@@ -235,12 +241,169 @@ jobs:
           infrastructure/scripts/verify-vm-deployment.sh
 
   # ---------------------------------------------------------------------------
-  # VM-only path (no Azure): same light gate + optional deploy
+  # Terraform — Hetzner
+  # ---------------------------------------------------------------------------
+  terraform-plan-hetzner:
+    name: terraform-plan-hetzner
+    needs: deploy-config
+    if: needs.deploy-config.outputs.run_terraform_hetzner == 'true'
+    runs-on: ubuntu-latest
+    env:
+      HCLOUD_TOKEN: ${{ secrets.HCLOUD_TOKEN }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.5.0"
+          terraform_wrapper: false
+
+      - name: Prepare SSH public key for Terraform
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          mkdir -p .ci-ssh
+          echo "$SSH_PRIVATE_KEY" > .ci-ssh/id_rsa
+          chmod 600 .ci-ssh/id_rsa
+          ssh-keygen -y -f .ci-ssh/id_rsa > .ci-ssh/id_rsa.pub
+          echo "TF_VAR_ssh_public_key_path=${GITHUB_WORKSPACE}/.ci-ssh/id_rsa.pub" >> "$GITHUB_ENV"
+
+      - name: Terraform Init
+        working-directory: infrastructure/terraform/hetzner
+        run: terraform init -input=false
+        env:
+          TF_VAR_domain: ${{ secrets.DOMAIN }}
+
+      - name: Terraform Validate
+        working-directory: infrastructure/terraform/hetzner
+        run: terraform validate
+        env:
+          TF_VAR_domain: ${{ secrets.DOMAIN }}
+
+      - name: Terraform Plan
+        working-directory: infrastructure/terraform/hetzner
+        run: terraform plan -no-color -out=tfplan
+        env:
+          TF_VAR_domain: ${{ secrets.DOMAIN }}
+
+      - name: Upload Terraform plan
+        uses: actions/upload-artifact@v4
+        with:
+          name: tfplan-hetzner
+          path: infrastructure/terraform/hetzner/tfplan
+          if-no-files-found: error
+
+  terraform-apply-hetzner:
+    name: terraform-apply-hetzner
+    needs:
+      - deploy-config
+      - terraform-plan-hetzner
+    if: needs.deploy-config.outputs.run_terraform_hetzner == 'true'
+    runs-on: ubuntu-latest
+    env:
+      HCLOUD_TOKEN: ${{ secrets.HCLOUD_TOKEN }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.5.0"
+          terraform_wrapper: false
+
+      - name: Download Terraform plan
+        uses: actions/download-artifact@v4
+        with:
+          name: tfplan-hetzner
+          path: infrastructure/terraform/hetzner
+
+      - name: Prepare SSH public key for Terraform
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          mkdir -p .ci-ssh
+          echo "$SSH_PRIVATE_KEY" > .ci-ssh/id_rsa
+          chmod 600 .ci-ssh/id_rsa
+          ssh-keygen -y -f .ci-ssh/id_rsa > .ci-ssh/id_rsa.pub
+          echo "TF_VAR_ssh_public_key_path=${GITHUB_WORKSPACE}/.ci-ssh/id_rsa.pub" >> "$GITHUB_ENV"
+
+      - name: Terraform Init
+        working-directory: infrastructure/terraform/hetzner
+        run: terraform init -input=false
+        env:
+          TF_VAR_domain: ${{ secrets.DOMAIN }}
+
+      - name: Terraform Apply
+        working-directory: infrastructure/terraform/hetzner
+        run: terraform apply -auto-approve tfplan
+        env:
+          TF_VAR_domain: ${{ secrets.DOMAIN }}
+
+      - name: Get VM Public IP
+        id: vmip
+        working-directory: infrastructure/terraform/hetzner
+        run: |
+          echo "public_ip=$(terraform output -raw vm_public_ip)" >> "$GITHUB_OUTPUT"
+
+      - name: Setup SSH
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+
+      - name: Light gate (verify-vm + iteration 3)
+        id: light_gate
+        env:
+          VM_PUBLIC_IP: ${{ steps.vmip.outputs.public_ip }}
+          VM_USERNAME: ${{ secrets.VM_USERNAME }}
+          DOMAIN: ${{ secrets.DOMAIN }}
+          TERRAFORM_DIR: ${{ github.workspace }}/infrastructure/terraform/hetzner
+          GITHUB_ACTIONS: "true"
+        run: |
+          set -euo pipefail
+          chmod +x infrastructure/scripts/verify-vm-deployment.sh
+          chmod +x iterations/iteration-3-services/verify.sh
+          if infrastructure/scripts/verify-vm-deployment.sh && \
+             iterations/iteration-3-services/verify.sh; then
+            echo "skip_deploy=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "skip_deploy=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Deploy Application Configuration
+        if: steps.light_gate.outputs.skip_deploy != 'true'
+        env:
+          VM_PUBLIC_IP: ${{ steps.vmip.outputs.public_ip }}
+          VM_USERNAME: ${{ secrets.VM_USERNAME }}
+          DOMAIN: ${{ secrets.DOMAIN }}
+          REPO_ROOT: ${{ github.workspace }}
+        run: |
+          set -euo pipefail
+          chmod +x infrastructure/scripts/deploy-to-vm.sh
+          infrastructure/scripts/deploy-to-vm.sh
+
+      - name: Verify Deployment
+        if: steps.light_gate.outputs.skip_deploy != 'true'
+        env:
+          VM_PUBLIC_IP: ${{ steps.vmip.outputs.public_ip }}
+          VM_USERNAME: ${{ secrets.VM_USERNAME }}
+          DOMAIN: ${{ secrets.DOMAIN }}
+        run: |
+          set -euo pipefail
+          chmod +x infrastructure/scripts/verify-vm-deployment.sh
+          infrastructure/scripts/verify-vm-deployment.sh
+
+  # ---------------------------------------------------------------------------
+  # VM-only path
   # ---------------------------------------------------------------------------
   vm-deploy:
     name: vm-deploy
     needs: deploy-config
-    if: needs.deploy-config.outputs.has_azure != 'true' && needs.deploy-config.outputs.has_vm_secrets == 'true'
+    if: needs.deploy-config.outputs.run_terraform_azure != 'true' && needs.deploy-config.outputs.run_terraform_hetzner != 'true' && needs.deploy-config.outputs.has_vm_secrets == 'true'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -292,16 +455,13 @@ jobs:
           chmod +x infrastructure/scripts/verify-vm-deployment.sh
           infrastructure/scripts/verify-vm-deployment.sh
 
-  # ---------------------------------------------------------------------------
-  # Nothing to run: no Azure and VM secrets incomplete
-  # ---------------------------------------------------------------------------
   deploy-notice:
     name: deploy-notice
     needs: deploy-config
-    if: needs.deploy-config.outputs.has_azure != 'true' && needs.deploy-config.outputs.has_vm_secrets != 'true'
+    if: needs.deploy-config.outputs.run_terraform_azure != 'true' && needs.deploy-config.outputs.run_terraform_hetzner != 'true' && needs.deploy-config.outputs.has_vm_secrets != 'true'
     runs-on: ubuntu-latest
     steps:
-      - name: Skip (no Azure credentials and no full VM secret set)
+      - name: Skip (no Terraform path and no full VM secret set)
         run: |
-          echo "Deploy skipped: set AZURE_CREDENTIALS for Terraform, or set VM_PUBLIC_IP, VM_USERNAME, DOMAIN, and SSH_PRIVATE_KEY for VM-only deploy."
+          echo "Deploy skipped: set HOSTING_PROVIDER=azure with AZURE_CREDENTIALS, or HOSTING_PROVIDER=hetzner with HCLOUD_TOKEN, or set VM_PUBLIC_IP, VM_USERNAME, DOMAIN, and SSH_PRIVATE_KEY for VM-only deploy."
           echo "See docs/cicd-pipelines.md"

@@ -14,7 +14,7 @@ print_header "$ITERATION"
 echo "Using Terraform directory: $(resolve_terraform_dir || echo '?')"
 
 if ! verify_terraform_state; then
-  print_warning "Apply Terraform first (terraform init && terraform apply) in infrastructure/terraform"
+  print_warning "Apply Terraform first (terraform init && terraform apply) in infrastructure/terraform/azure or hetzner, or set TERRAFORM_DIR"
   print_footer "$ITERATION" 1
   exit 1
 fi
@@ -23,22 +23,48 @@ print_success "Terraform state / outputs OK"
 # shellcheck source=../common/config.sh
 source "${SCRIPT_DIR}/../common/config.sh"
 
-if ! command -v az >/dev/null 2>&1; then
-  exit_with_error "Azure CLI (az) not found; install it to verify VM in Azure"
-fi
+CLOUD_PROVIDER="$(resolve_cloud_provider)"
+export CLOUD_PROVIDER
 
-if ! az vm show -g "$RESOURCE_GROUP" -n "$VM_NAME" &>/dev/null; then
-  print_failure "VM $VM_NAME not found in resource group $RESOURCE_GROUP"
-  exit 1
-fi
-print_success "VM exists in Azure"
+if [[ "$CLOUD_PROVIDER" == "azure" ]]; then
+  if ! command -v az >/dev/null 2>&1; then
+    exit_with_error "Azure CLI (az) not found; install it to verify VM in Azure"
+  fi
 
-PS=$(az vm list -g "$RESOURCE_GROUP" -d --query "[?name=='$VM_NAME'].powerState" -o tsv 2>/dev/null || true)
-if [[ "$PS" != *"running"* ]]; then
-  print_failure "VM power state: ${PS:-unknown} (expected running; wait if the VM was just created)"
-  exit 1
+  if ! az vm show -g "$RESOURCE_GROUP" -n "$VM_NAME" &>/dev/null; then
+    print_failure "VM $VM_NAME not found in resource group $RESOURCE_GROUP"
+    exit 1
+  fi
+  print_success "VM exists in Azure"
+
+  PS=$(az vm list -g "$RESOURCE_GROUP" -d --query "[?name=='$VM_NAME'].powerState" -o tsv 2>/dev/null || true)
+  if [[ "$PS" != *"running"* ]]; then
+    print_failure "VM power state: ${PS:-unknown} (expected running; wait if the VM was just created)"
+    exit 1
+  fi
+  print_success "VM is running"
+elif [[ "$CLOUD_PROVIDER" == "hetzner" ]]; then
+  if ! command -v hcloud >/dev/null 2>&1; then
+    exit_with_error "Hetzner hcloud CLI not found; install https://github.com/hetznercloud/cli and set HCLOUD_TOKEN"
+  fi
+  if [[ -z "${HCLOUD_TOKEN:-}" ]]; then
+    print_warning "HCLOUD_TOKEN unset — hcloud may fail authentication"
+  fi
+  if ! hcloud server describe "$VM_NAME" &>/dev/null; then
+    print_failure "Hetzner server $VM_NAME not found (check HCLOUD_TOKEN and project)"
+    exit 1
+  fi
+  print_success "Hetzner server exists: $VM_NAME"
+
+  st=$(hcloud server describe "$VM_NAME" -o format='{{.Status}}' 2>/dev/null || echo "")
+  if [[ "$st" != "running" ]]; then
+    print_failure "Hetzner server status: ${st:-unknown} (expected running)"
+    exit 1
+  fi
+  print_success "Hetzner server is running"
+else
+  exit_with_error "Unknown cloud_provider: ${CLOUD_PROVIDER:-}"
 fi
-print_success "VM is running"
 
 if [[ -z "$PUBLIC_IP" ]] || [[ "$PUBLIC_IP" == "null" ]]; then
   exit_with_error "vm_public_ip output empty"

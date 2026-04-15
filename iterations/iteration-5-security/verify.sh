@@ -13,7 +13,7 @@ STATUS=0
 print_header "$ITERATION"
 
 if ! verify_terraform_state; then
-  print_warning "Apply Terraform first (terraform init && terraform apply) in infrastructure/terraform"
+  print_warning "Apply Terraform first in infrastructure/terraform/azure or hetzner (or set TERRAFORM_DIR)"
   print_footer "$ITERATION" 1
   exit 1
 fi

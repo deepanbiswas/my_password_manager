@@ -48,7 +48,7 @@ See also [Troubleshooting — Backup fails](troubleshooting.md#backup-fails).
 
 ## Verification
 
-From `infrastructure/terraform` (Terraform state or `VM_*` env set):
+From `infrastructure/terraform/azure` or `hetzner` (Terraform state or `VM_*` env set; or `export TERRAFORM_DIR=...`):
 
 ```bash
 ../../iterations/iteration-6-backup/verify.sh

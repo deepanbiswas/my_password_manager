@@ -11,6 +11,6 @@ if load_vm_config_from_env; then
 elif load_vm_config; then
   :
 else
-  echo "Failed to load VM config: set VM_PUBLIC_IP, VM_USERNAME, and DOMAIN, or run from infrastructure/terraform after terraform apply." >&2
+  echo "Failed to load VM config: set VM_PUBLIC_IP, VM_USERNAME, and DOMAIN, or run from infrastructure/terraform/azure (or hetzner) after terraform apply, or set TERRAFORM_DIR." >&2
   exit 1
 fi

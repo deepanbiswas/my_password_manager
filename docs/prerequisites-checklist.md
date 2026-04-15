@@ -64,7 +64,7 @@ git remote -v
 
 ## 4. Terraform installed locally (>= 1.5.0)
 
-**Comply:** `terraform version` shows **v1.5.0 or newer** (matches `required_version` in `infrastructure/terraform/main.tf`).
+**Comply:** `terraform version` shows **v1.5.0 or newer** (matches `required_version` in `infrastructure/terraform/azure/main.tf` and `hetzner/main.tf`).
 
 - [X] Install from [HashiCorp Terraform install](https://developer.hashicorp.com/terraform/install).
 
@@ -111,7 +111,7 @@ az group list -o table
 
 ## 6. SSH key pair generated
 
-**Comply:** A public key is referenced by `ssh_public_key_path` in `infrastructure/terraform/terraform.tfvars` (copy from [terraform.tfvars.example](../infrastructure/terraform/terraform.tfvars.example)).
+**Comply:** A public key is referenced by `ssh_public_key_path` in `infrastructure/terraform/azure/terraform.tfvars` or `hetzner/terraform.tfvars` (copy from the matching `terraform.tfvars.example`).
 
 - [X] Generate a key (RSA):
 

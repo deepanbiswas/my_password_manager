@@ -20,6 +20,8 @@ fi
 # shellcheck source=../common/config.sh
 source "${SCRIPT_DIR}/../common/config.sh"
 
+CLOUD_PROVIDER="$(resolve_cloud_provider)"
+
 HEALTH_SCRIPT="/opt/vaultwarden/scripts/health-check.sh"
 HEALTH_LOG="/var/log/vaultwarden-health.log"
 
@@ -83,25 +85,29 @@ else
   print_warning "Watchtower logs empty or very short (optional)"
 fi
 
-if command -v az >/dev/null 2>&1 && az account show &>/dev/null; then
-  if az consumption budget list 2>/dev/null | grep -qE 'name|Budget'; then
-    print_success "Azure budget(s) visible via CLI"
+if [[ "$CLOUD_PROVIDER" == "azure" ]]; then
+  if command -v az >/dev/null 2>&1 && az account show &>/dev/null; then
+    if az consumption budget list 2>/dev/null | grep -qE 'name|Budget'; then
+      print_success "Azure budget(s) visible via CLI"
+    else
+      print_warning "Azure budgets not listed via CLI — configure in Portal per plan.md Step 4"
+    fi
   else
-    print_warning "Azure budgets not listed via CLI — configure in Portal per plan.md Step 4"
+    print_warning "Skipping Azure budget CLI check (install az and az login, or set budgets in Portal)"
   fi
-else
-  print_warning "Skipping Azure budget CLI check (install az and az login, or set budgets in Portal)"
-fi
 
-if [[ -n "${RESOURCE_GROUP:-}" ]] && command -v az >/dev/null 2>&1 && az account show &>/dev/null; then
-  if [[ "$(az group show -n "$RESOURCE_GROUP" --query tags.Project -o tsv 2>/dev/null)" == "password-manager" ]]; then
-    print_success "Resource group ${RESOURCE_GROUP} has Project=password-manager tag"
+  if [[ -n "${RESOURCE_GROUP:-}" ]] && command -v az >/dev/null 2>&1 && az account show &>/dev/null; then
+    if [[ "$(az group show -n "$RESOURCE_GROUP" --query tags.Project -o tsv 2>/dev/null)" == "password-manager" ]]; then
+      print_success "Resource group ${RESOURCE_GROUP} has Project=password-manager tag"
+    else
+      print_failure "Resource group ${RESOURCE_GROUP} missing Project=password-manager tag"
+      STATUS=1
+    fi
   else
-    print_failure "Resource group ${RESOURCE_GROUP} missing Project=password-manager tag"
-    STATUS=1
+    print_warning "Skipping resource group tag check (RESOURCE_GROUP empty or az not logged in)"
   fi
 else
-  print_warning "Skipping resource group tag check (RESOURCE_GROUP empty or az not logged in)"
+  print_warning "Skipping Azure budget/tag checks (cloud_provider=${CLOUD_PROVIDER})"
 fi
 
 if ssh_vm "sudo test -f /etc/logrotate.d/vaultwarden && grep -qE 'rotate[[:space:]]+30' /etc/logrotate.d/vaultwarden"; then

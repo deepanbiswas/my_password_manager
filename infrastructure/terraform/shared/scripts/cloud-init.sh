@@ -1,5 +1,6 @@
 #!/bin/bash
 # Cloud-init bootstrap for Vaultwarden host (expanded by Terraform templatefile).
+# Shared by Azure custom_data and Hetzner user_data.
 set -euo pipefail
 export DEBIAN_FRONTEND=noninteractive
 

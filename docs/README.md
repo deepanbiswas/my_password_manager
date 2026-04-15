@@ -25,6 +25,9 @@ This directory contains detailed documentation and guides for the self-hosted pa
 - Size limits and optimization
 - Backup considerations
 
+### [Azure → Hetzner migration (TDI)](migration-azure-to-hetzner-tdi.md)
+- Dual Terraform roots (`infrastructure/terraform/azure` and `hetzner`), `HOSTING_PROVIDER`, `HCLOUD_TOKEN`, and iteration checklist
+
 ### [Azure VM deallocate and start](azure-vm-deallocate-and-start.md)
 - Shut down the VM for cost savings (`az vm deallocate`) and start it again (`az vm start`)
 - Optional commands using Terraform outputs for resource group and VM name

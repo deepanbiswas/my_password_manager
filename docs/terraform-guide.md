@@ -9,30 +9,38 @@ Terraform enables automated infrastructure provisioning for the password manager
 ```
 infrastructure/
 ├── terraform/
-│   ├── main.tf                 # Provider configuration & backend only
-│   ├── azure.tf                # Azure-specific resources (vendor-specific)
-│   ├── variables.tf            # Input variables
-│   ├── outputs.tf              # Output values
-│   └── scripts/
-│       └── cloud-init.sh       # Cloud-init script for VM bootstrap
-├── templates/                  # Deployment templates (shared by CI/CD and manual deployment)
+│   ├── README.md               # Which root to use (Azure vs Hetzner)
+│   ├── azure/                  # Azure Terraform root (separate state)
+│   │   ├── main.tf
+│   │   ├── azure.tf
+│   │   ├── variables.tf
+│   │   ├── outputs.tf
+│   │   └── terraform.tfvars.example
+│   ├── hetzner/                # Hetzner Cloud Terraform root (separate state)
+│   │   ├── main.tf
+│   │   ├── main-stack.tf
+│   │   ├── variables.tf
+│   │   ├── outputs.tf
+│   │   └── terraform.tfvars.example
+│   └── shared/
+│       └── scripts/
+│           └── cloud-init.sh   # Shared bootstrap (Azure custom_data + Hetzner user_data)
+├── templates/                  # Deployment templates (shared)
 │   ├── docker-compose.yml.template
 │   ├── Caddyfile.template
 │   ├── backup.sh.template
 │   ├── health-check.sh.template
 │   └── .env.template
-├── terraform.tfvars            # Variable values (create from example)
-├── terraform.tfvars.example    # Example variable values
-└── terraform.tfstate           # State file (gitignored, auto-generated)
+└── (per-root) terraform.tfvars / terraform.tfstate — gitignored under azure/ or hetzner/
 ```
 
 ## Terraform Configuration Requirements
 
-### Main Configuration (`infrastructure/terraform/main.tf`)
+### Main Configuration (`infrastructure/terraform/azure/main.tf`)
 
 **Purpose**: Provider configuration and backend setup only
 
-**Location**: `infrastructure/terraform/main.tf`
+**Location**: `infrastructure/terraform/azure/main.tf`
 
 **Created During**: Step 1: Terraform Setup (see [plan.md](plan.md))
 
@@ -49,11 +57,11 @@ infrastructure/
 
 **Note**: This file contains only provider and backend configuration. All Azure-specific resources are in `azure.tf`.
 
-### Azure Resources (`infrastructure/terraform/azure.tf`)
+### Azure Resources (`infrastructure/terraform/azure/azure.tf`)
 
 **Purpose**: All Azure-specific infrastructure resources
 
-**Location**: `infrastructure/terraform/azure.tf`
+**Location**: `infrastructure/terraform/azure/azure.tf`
 
 **Created During**: Step 1: Terraform Setup (see [plan.md](plan.md))
 
@@ -104,13 +112,13 @@ infrastructure/
    - Custom data: Base64-encoded cloud-init script (see Cloud-Init Script requirements)
    - Tags: Merge resource group tags with Component=vaultwarden, Backup=enabled
 
-**Note**: The `custom_data` field references the cloud-init script. Ensure `scripts/cloud-init.sh` exists before running `terraform plan`. Separating vendor-specific resources makes it easier to add support for other cloud providers (AWS, GCP) in the future.
+**Note**: The `custom_data` field references `../shared/scripts/cloud-init.sh`. Run `terraform plan` from `infrastructure/terraform/azure/`. Hetzner uses the same script via `user_data` in `infrastructure/terraform/hetzner/`.
 
-### Outputs File (`infrastructure/terraform/outputs.tf`)
+### Outputs File (`infrastructure/terraform/azure/outputs.tf`)
 
 **Purpose**: Output values for deployment automation
 
-**Location**: `infrastructure/terraform/outputs.tf`
+**Location**: `infrastructure/terraform/azure/outputs.tf`
 
 **Created During**: Step 1: Terraform Setup (see [plan.md](plan.md))
 
@@ -118,11 +126,11 @@ infrastructure/
 - **vm_public_ip**: Output the public IP address of the VM
 - **vm_ssh_command**: Output SSH command to connect to the VM (format: `ssh ${var.admin_username}@${public_ip}`)
 
-### Variables File (`infrastructure/terraform/variables.tf`)
+### Variables File (`infrastructure/terraform/azure/variables.tf`)
 
 **Purpose**: Input variables for Terraform configuration
 
-**Location**: `infrastructure/terraform/variables.tf`
+**Location**: `infrastructure/terraform/azure/variables.tf`
 
 **Created During**: Step 1: Terraform Setup (see [plan.md](plan.md))
 
@@ -142,11 +150,11 @@ infrastructure/
 
 The `cloud-init.sh` script is a bootstrap automation script that runs automatically on the first boot of a newly provisioned Azure VM. It eliminates the need for manual SSH access and setup by automatically installing all required dependencies (Docker, Docker Compose, Rclone, GPG, SQLite), creating directory structures, and configuring the firewall. This enables true zero-touch infrastructure provisioning when combined with Terraform and CI/CD pipelines.
 
-### Cloud-Init Script (`infrastructure/terraform/scripts/cloud-init.sh`)
+### Cloud-Init Script (`infrastructure/terraform/shared/scripts/cloud-init.sh`)
 
-**Purpose**: Bootstrap automation script that runs automatically on first boot of newly provisioned Azure VM
+**Purpose**: Bootstrap automation script that runs automatically on first boot of newly provisioned VM (Azure or Hetzner)
 
-**Location**: `infrastructure/terraform/scripts/cloud-init.sh`
+**Location**: `infrastructure/terraform/shared/scripts/cloud-init.sh`
 
 **Created During**: Step 1: Terraform Setup (see [plan.md](plan.md))
 

@@ -152,14 +152,15 @@ This checklist supports two deployment approaches:
 **Estimated Time**: 30-45 minutes
 
 **Create Directory Structure:**
-- [X] *Create base directories: `mkdir -p infrastructure/terraform/scripts infrastructure/templates`*
+- [X] *Create base directories: `mkdir -p infrastructure/terraform/azure infrastructure/terraform/hetzner infrastructure/terraform/shared/scripts infrastructure/templates`*
 - [X] *Verify directory structure:*
   ```
   infrastructure/
   ├── terraform/
-  │   ├── scripts/
-  │   │   └── cloud-init.sh
-  │   └── (Terraform files will be created here)
+  │   ├── azure/          (Azure Terraform root)
+  │   ├── hetzner/        (Hetzner Terraform root)
+  │   └── shared/scripts/
+  │       └── cloud-init.sh
   └── templates/
       ├── docker-compose.yml.template
       ├── Caddyfile.template
@@ -169,17 +170,15 @@ This checklist supports two deployment approaches:
   ```
 
 **Create Terraform Configuration Files:**
-- [X] *Create `infrastructure/terraform/main.tf` - Follow instructions in [Terraform Guide - Main Configuration](docs/terraform-guide.md#main-configuration-infrastructureterraformmaintf)*
-- [X] *Create `infrastructure/terraform/azure.tf` - Follow instructions in [Terraform Guide - Azure Resources](docs/terraform-guide.md#azure-resources-infrastructureterraformazuretf)*
-  - **Note**: This file contains all Azure vendor-specific resources (resource group, network, VM, etc.)
-  - Separating vendor-specific code makes it easier to add support for other cloud providers (AWS, GCP) in the future
-- [X] *Create `infrastructure/terraform/variables.tf` - Follow instructions in [Terraform Guide - Variables File](docs/terraform-guide.md#variables-file-infrastructureterraformvariablestf)*
-- [X] *Create `infrastructure/terraform/outputs.tf` - Follow instructions in [Terraform Guide - Outputs File](docs/terraform-guide.md#outputs-file-infrastructureterraformoutputstf)*
+- [X] *Create `infrastructure/terraform/azure/main.tf` — [Terraform Guide](docs/terraform-guide.md)*
+- [X] *Create `infrastructure/terraform/azure/azure.tf` — [Terraform Guide](docs/terraform-guide.md)*
+  - **Note**: Azure vendor-specific resources (resource group, network, VM, etc.); Hetzner lives in `hetzner/`.
+- [X] *Create `infrastructure/terraform/azure/variables.tf` and `outputs.tf` — [Terraform Guide](docs/terraform-guide.md)*
 
 **Create Cloud-Init Script:**
-- [X] *Create `infrastructure/terraform/scripts/cloud-init.sh` - Follow instructions in [Terraform Guide - Cloud-Init Script](docs/terraform-guide.md#cloud-init-script-infrastructureterraformscriptscloud-initsh)*
-- [X] *Make script executable: `chmod +x infrastructure/terraform/scripts/cloud-init.sh`*
-- [X] *Important: The `azure.tf` file references this script via `templatefile("${path.module}/scripts/cloud-init.sh", {...})`, so it must exist before running `terraform plan`*
+- [X] *Create `infrastructure/terraform/shared/scripts/cloud-init.sh` — [Terraform Guide](docs/terraform-guide.md)*
+- [X] *Make script executable: `chmod +x infrastructure/terraform/shared/scripts/cloud-init.sh`*
+- [X] *Important: Azure `custom_data` and Hetzner `user_data` reference this file via `templatefile("${path.module}/../shared/scripts/cloud-init.sh", {...})`*
 
 **Create Deployment Templates:**
 - [X] *Create templates directory: `mkdir -p infrastructure/templates`*
@@ -192,7 +191,7 @@ This checklist supports two deployment approaches:
 - [X] *Note: These templates will be used by both CI/CD pipeline and manual deployment to generate deployment files with environment-specific values. See [Templates Reference](#templates-reference) section for template instructions.*
 
 **Create Variable Values File:**
-- [X] *Create `infrastructure/terraform/terraform.tfvars` with your configuration:*
+- [X] *Create `infrastructure/terraform/azure/terraform.tfvars` (or `hetzner/terraform.tfvars`) with your configuration:*
   ```hcl
   location         = "Central India"
   environment      = "production"
@@ -210,7 +209,7 @@ This checklist supports two deployment approaches:
 - [X] *Verify credentials: `az account show`*
 
 **Initialize and Deploy:**
-- [X] *Navigate to Terraform directory: `cd infrastructure/terraform`*
+- [X] *Navigate to Terraform directory: `cd infrastructure/terraform/azure` (or `hetzner/` for Hetzner)*
 - [X] *Initialize Terraform: `terraform init`*
 - [X] *Review infrastructure plan: `terraform plan`*
 - [X] *Apply infrastructure: `terraform apply` (type `yes` when prompted)*
@@ -232,9 +231,11 @@ This checklist supports two deployment approaches:
   - [X] `AZURE_CLIENT_SECRET`
   - [X] `AZURE_TENANT_ID`
   - [X] `AZURE_CREDENTIALS`
+  - [X] `HCLOUD_TOKEN` (Hetzner Cloud API token when using `HOSTING_PROVIDER=hetzner`)
   - [X] `DOMAIN`
   - [X] `SSH_PRIVATE_KEY`
   - [X] `VM_USERNAME`
+- [X] Repository variable **`HOSTING_PROVIDER`**: `azure` (default when unset) or `hetzner` — see [docs/cicd-pipelines.md](docs/cicd-pipelines.md) and [docs/migration-azure-to-hetzner-tdi.md](docs/migration-azure-to-hetzner-tdi.md)
 - [X] *Push code to trigger pipeline*
 - [X] *Monitor pipeline execution*
 
@@ -256,7 +257,7 @@ This checklist supports two deployment approaches:
   - [X] Create `docker-compose.yml` and `caddy/Caddyfile`
   - [X] Install backup and health check scripts under `/opt/vaultwarden/scripts` and **crontab** ([Iteration 6](auto_deploy_iterations.md#iteration-6-backup-system) / [Iteration 7](auto_deploy_iterations.md#iteration-7-monitoring--automation); applied by [`deploy-to-vm.sh`](infrastructure/scripts/deploy-to-vm.sh))
   - [X] Start all services (Vaultwarden, Caddy, Watchtower)
-- [X] **SSL / HTTPS (TDI iteration 4):** Run `../../iterations/iteration-4-ssl/verify.sh` from `infrastructure/terraform` — exit **0** (DNS → VM IP, Let's Encrypt via Caddy, HTTPS, HTTP→HTTPS redirect, TLS 1.2+, HSTS / `X-Frame-Options` / CSP). See [Iteration 4](auto_deploy_iterations.md#iteration-4-reverse-proxy--ssl-configuration).
+- [X] **SSL / HTTPS (TDI iteration 4):** Run `../../iterations/iteration-4-ssl/verify.sh` from `infrastructure/terraform/azure` (or your active root) — exit **0** (DNS → VM IP, Let's Encrypt via Caddy, HTTPS, HTTP→HTTPS redirect, TLS 1.2+, HSTS / `X-Frame-Options` / CSP). See [Iteration 4](auto_deploy_iterations.md#iteration-4-reverse-proxy--ssl-configuration).
 - [X] **Security hardening (TDI iteration 5):** Deploy includes custom Caddy image (`infrastructure/docker/caddy`) with rate limiting; run `../../iterations/iteration-5-security/verify.sh` — exit **0** (signups disabled after account creation, UFW, rate limits, limits, `.env` 600, non-root). See [Iteration 5](auto_deploy_iterations.md#iteration-5-security-hardening).
 - [ ] **If pipeline fails**: See [Rollback Procedures](#rollback-procedures) and [Troubleshooting Guide](docs/troubleshooting.md)
 
@@ -266,7 +267,7 @@ This checklist supports two deployment approaches:
 
 - [X] Verify CI/CD pipeline completed successfully (check GitHub Actions)
   - **Troubleshooting**: If pipeline failed, see [Troubleshooting Guide - CI/CD Issues](docs/troubleshooting.md#cicd-issues)
-- [X] **Core stack verification (TDI iteration 3):** `iterations/iteration-3-services/verify.sh` run from `infrastructure/terraform` exits **0** (containers, compose, network, `.env` permissions)
+- [X] **Core stack verification (TDI iteration 3):** `iterations/iteration-3-services/verify.sh` run from `infrastructure/terraform/azure` (or active root) exits **0** (containers, compose, network, `.env` permissions)
 - [X] **SSL / HTTPS verification (TDI iteration 4):** `iterations/iteration-4-ssl/verify.sh` exits **0** (DNS, HTTPS, TLS, security headers; same working directory as above)
 - [X] **Security verification (TDI iteration 5):** `iterations/iteration-5-security/verify.sh` exits **0** (signups workflow, UFW, Caddy rate limit, resource limits, `.env`, non-root Vaultwarden)
 - [X] **Post-Deployment Verification** (remaining manual checklist): Follow [Post-Deployment Verification](#post-deployment-verification) in Common Configuration Steps (Bitwarden client tests, optional admin UI spot-checks; account + signups hardening covered by iteration 5 `verify.sh` where applicable)
@@ -686,7 +687,7 @@ If deployment fails at any stage, use these rollback procedures to restore the s
 **If Terraform apply fails or creates incorrect resources:**
 
 **Rollback Steps**:
-1. Navigate to Terraform directory: `cd infrastructure/terraform`
+1. Navigate to Terraform directory: `cd infrastructure/terraform/azure` (or `hetzner/`)
 2. Review what will be destroyed: `terraform plan -destroy`
 3. Destroy all resources (if needed): `terraform destroy`
 4. Or rollback to previous state (if using remote state):

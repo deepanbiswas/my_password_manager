@@ -45,22 +45,28 @@ jobs:
         with:
           terraform_version: "1.5.0"
 
-      - name: Terraform fmt, init (no backend), validate
+      - name: Terraform fmt, init (no backend), validate (Azure + Hetzner)
         run: |
           set -euo pipefail
-          if [ ! -d infrastructure/terraform ] || ! compgen -G "infrastructure/terraform/*.tf" > /dev/null; then
-            echo "::notice::No Terraform files under infrastructure/terraform yet; skipping Terraform checks."
+          if [ ! -d infrastructure/terraform/azure ] || [ ! -d infrastructure/terraform/hetzner ]; then
+            echo "::notice::Expected infrastructure/terraform/azure and hetzner; skipping Terraform checks."
             exit 0
           fi
-          cd infrastructure/terraform
-          terraform fmt -check -recursive
-          mkdir -p .ci-terraform
-          ssh-keygen -t rsa -b 4096 -f .ci-terraform/ci -N "" -q
-          # Use TF_VAR_* so terraform validate works on Terraform 1.9+ (validate no longer accepts -var-file).
+          terraform fmt -check -recursive infrastructure/terraform
           export TF_VAR_domain="https://ci.validate.invalid"
-          export TF_VAR_ssh_public_key_path="$(pwd)/.ci-terraform/ci.pub"
-          terraform init -backend=false -input=false
-          terraform validate
+          for root in azure hetzner; do
+            tf="infrastructure/terraform/${root}"
+            echo "==> ${tf}"
+            mkdir -p "${tf}/.ci-terraform"
+            ssh-keygen -t rsa -b 4096 -f "${tf}/.ci-terraform/ci" -N "" -q
+            export TF_VAR_ssh_public_key_path="$(pwd)/${tf}/.ci-terraform/ci.pub"
+            if [ "$root" = "hetzner" ]; then
+              export HCLOUD_TOKEN="invalid-token-for-validate-only"
+            else
+              unset HCLOUD_TOKEN || true
+            fi
+            (cd "$tf" && terraform init -backend=false -input=false && terraform validate)
+          done
 
       - name: Shellcheck
         run: |
@@ -69,7 +75,7 @@ jobs:
           sudo apt-get install -y shellcheck
           shopt -s nullglob
           files=()
-          for d in iterations infrastructure/terraform/scripts infrastructure/scripts scripts; do
+          for d in iterations infrastructure/terraform/shared/scripts infrastructure/terraform/scripts infrastructure/scripts scripts; do
             if [ -d "$d" ]; then
               while IFS= read -r -d '' f; do
                 files+=("$f")
@@ -80,7 +86,6 @@ jobs:
             echo "::notice::No shell scripts under iterations/, infrastructure/**/scripts, or scripts/; skipping shellcheck."
             exit 0
           fi
-          # SC1091: dynamic paths to sourced libs (see shellcheck -x); not worth failing CI.
           shellcheck -e SC1091 "${files[@]}"
 
       - name: Validate workflow YAML syntax

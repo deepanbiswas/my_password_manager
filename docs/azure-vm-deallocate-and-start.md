@@ -24,7 +24,7 @@ az vm deallocate \
 ### Using Terraform outputs (from repo root)
 
 ```bash
-cd infrastructure/terraform
+cd infrastructure/terraform/azure
 az vm deallocate \
   --resource-group "$(terraform output -raw resource_group_name)" \
   --name "$(terraform output -raw vm_name)"
@@ -50,13 +50,13 @@ az vm start \
 Or with Terraform outputs:
 
 ```bash
-cd infrastructure/terraform
+cd infrastructure/terraform/azure
 az vm start \
   --resource-group "$(terraform output -raw resource_group_name)" \
   --name "$(terraform output -raw vm_name)"
 ```
 
-Wait until the instance reports **VM running**, then SSH and run your usual checks (e.g. iteration `verify.sh` from `infrastructure/terraform` per `auto_deploy_iterations.md`).
+Wait until the instance reports **VM running**, then SSH and run your usual checks (e.g. iteration `verify.sh` from `infrastructure/terraform/azure` per `auto_deploy_iterations.md`).
 
 ## What stops billing vs what still costs
 

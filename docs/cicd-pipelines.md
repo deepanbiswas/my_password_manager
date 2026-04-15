@@ -25,33 +25,27 @@ CI/CD pipelines automate the deployment process, enabling one-command deployment
    - Loaded from GitHub Secrets
 
 3. **Jobs** (see `.github/workflows/deploy.yml` for exact `if` conditions):
-   - **deploy-config**: Sets job outputs `has_azure` and `has_vm_secrets` from repository secrets (no Azure login).
-   - **terraform-plan** (runs only when `AZURE_CREDENTIALS` is set): Plan infrastructure changes
-     - Checkout code
-     - Setup Terraform (version 1.5.0)
-     - Run `terraform init`, `terraform validate`, `terraform plan`
-     - Upload plan artifact
-   - **terraform-apply** (runs only when `AZURE_CREDENTIALS` is set): Apply infrastructure
-     - Checkout code
-     - Setup Terraform
-     - Configure Azure credentials
-     - Download plan artifact
-     - Run `terraform apply`
-     - Get VM public IP from Terraform output
-     - Setup SSH agent with private key
-     - **Light gate** (Option B): run `infrastructure/scripts/verify-vm-deployment.sh` and `iterations/iteration-3-services/verify.sh`; if both succeed, skip deploy and post-verify for this job
-     - **Deploy Application Configuration** (skipped when light gate passes; see requirements below)
-     - **Verify Deployment** (skipped when light gate passes)
-   - **vm-deploy** (runs when Azure is not configured but VM secrets are complete): same light gate, then conditional deploy and verify using `VM_PUBLIC_IP` from secrets
-   - **deploy-notice** (runs when neither full Azure nor complete VM-only secrets): succeeds with a message so the workflow does not fail on missing `azure/login` credentials
+   - **deploy-config**: Computes `hosting_provider` (default `azure` if unset), `run_terraform_azure`, `run_terraform_hetzner`, and `has_vm_secrets` (no cloud login).
+   - **terraform-plan-azure** / **terraform-apply-azure**: When `HOSTING_PROVIDER` is unset or `azure` **and** `AZURE_CREDENTIALS` is set — working directory `infrastructure/terraform/azure`.
+   - **terraform-plan-hetzner** / **terraform-apply-hetzner**: When repository variable `HOSTING_PROVIDER` is `hetzner` **and** secret `HCLOUD_TOKEN` is set — working directory `infrastructure/terraform/hetzner` (no Azure login).
+   - **Light gate** (Option B) after apply: same as before (`verify-vm-deployment.sh` + `iteration-3-services/verify.sh`); `TERRAFORM_DIR` points at the root that applied.
+   - **vm-deploy**: When **neither** Terraform path runs but `VM_PUBLIC_IP`, `VM_USERNAME`, `DOMAIN`, and `SSH_PRIVATE_KEY` are all set.
+   - **deploy-notice**: When no Terraform path and VM secrets incomplete.
+
+### Hosting provider and Hetzner
+
+- Set GitHub repository variable **`HOSTING_PROVIDER`** to `azure` (default behavior when unset) or `hetzner`.
+- **Hetzner**: add repository secret **`HCLOUD_TOKEN`** (Hetzner Cloud API token, Read & Write). Never commit it; for local runs use `export HCLOUD_TOKEN=...`. Rotate by revoking the old token in the Hetzner console and updating the GitHub secret.
+- See [migration guide](migration-azure-to-hetzner-tdi.md) for the full dual-cloud TDI plan.
 
 ### Deploy workflow modes and secrets
 
-| Mode | When it runs | Secrets / inputs |
-|------|----------------|------------------|
-| **Full (Terraform + VM)** | `AZURE_CREDENTIALS` is set | `AZURE_CREDENTIALS`, `DOMAIN`, `SSH_PRIVATE_KEY`, `VM_USERNAME`, plus Terraform SSH bootstrap as today. VM IP comes from Terraform output after apply. |
-| **VM-only** | `AZURE_CREDENTIALS` empty and all of `VM_PUBLIC_IP`, `VM_USERNAME`, `DOMAIN`, `SSH_PRIVATE_KEY` set | No Azure login; deploy uses static `VM_PUBLIC_IP`. |
-| **Skipped** | No Azure and incomplete VM-only set | Job **deploy-notice** only; workflow stays green. |
+| Mode | When it runs | Secrets / variables |
+|------|----------------|---------------------|
+| **Terraform Azure** | `HOSTING_PROVIDER` empty or `azure`, and `AZURE_CREDENTIALS` set | Azure SP JSON + `DOMAIN`, `SSH_PRIVATE_KEY`, `VM_USERNAME`. |
+| **Terraform Hetzner** | `HOSTING_PROVIDER=hetzner` and `HCLOUD_TOKEN` set | `HCLOUD_TOKEN` + same deploy secrets as Azure path. |
+| **VM-only** | Neither Terraform path runs and all of `VM_PUBLIC_IP`, `VM_USERNAME`, `DOMAIN`, `SSH_PRIVATE_KEY` set | No cloud API in CI. |
+| **Skipped** | No Terraform path and incomplete VM-only set | **deploy-notice** only; workflow stays green. |
 
 ### Light gate (Option B) and what CI does not check
 
@@ -140,7 +134,7 @@ Configure these secrets in GitHub repository settings:
      - Install Terraform (version 1.5.0)
      - Run Terraform Init & Apply
      - Configure backend: Azure Storage for remote state
-     - Working directory: `infrastructure/terraform`
+     - Working directory: `infrastructure/terraform/azure` or `infrastructure/terraform/hetzner` (see GitHub Actions `deploy.yml`)
    - **Application Stage**: Deploy application (depends on Infrastructure stage)
      - **Deploy via SSH**: Connect to VM and execute deployment commands
        - Navigate to `/opt/vaultwarden`
