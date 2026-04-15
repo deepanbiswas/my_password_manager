@@ -101,11 +101,16 @@ Configure these secrets in GitHub repository settings:
 - `AZURE_CLIENT_SECRET`: Service principal client secret
 - `AZURE_TENANT_ID`: Azure tenant ID
 - `AZURE_CREDENTIALS`: JSON credentials for Azure login
+- `HCLOUD_TOKEN`: Hetzner Cloud API token (Read & Write), required when **`HOSTING_PROVIDER`** is `hetzner` — create under **Console → project → Security → API tokens**. Never commit; rotate by revoking the token in Hetzner and updating this secret.
 - `DOMAIN`: Your domain name (e.g., `https://your-domain.com`)
 - `SSH_PRIVATE_KEY`: Private SSH key for VM access
-- `VM_USERNAME`: VM admin username (e.g., `azureuser`)
+- `VM_USERNAME`: VM admin username (e.g., `azureuser` on Azure, often `root` on Hetzner Ubuntu images — must match the VM login user)
 - `VM_PUBLIC_IP`: (VM-only mode only) Public IPv4 of the VM when `AZURE_CREDENTIALS` is not set; required together with `DOMAIN`, `VM_USERNAME`, and `SSH_PRIVATE_KEY` for the **vm-deploy** job
 - `ALERT_EMAIL`: (Optional) Email for health check alerts
+
+### Repository variables (Deploy workflow)
+
+- **`HOSTING_PROVIDER`**: `azure` (default when unset) or `hetzner`. Set under **Settings → Secrets and variables → Actions → Variables**. This selects whether [`.github/workflows/deploy.yml`](../.github/workflows/deploy.yml) runs Terraform in `infrastructure/terraform/azure` or `infrastructure/terraform/hetzner`.
 
 ### Setting Up GitHub Secrets
 

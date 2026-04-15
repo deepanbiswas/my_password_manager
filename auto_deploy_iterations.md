@@ -159,7 +159,7 @@ Before running any iteration, you must:
 
 **Running Scripts:**
 - All scripts must be run from a directory where Terraform outputs are accessible
-- Typically run from `infrastructure/terraform/` directory
+- Typically run from `infrastructure/terraform/azure/` or `infrastructure/terraform/hetzner/` (or set **`TERRAFORM_DIR`** to that path from the repo root)
 - Scripts automatically load VM configuration from Terraform outputs
 - Use absolute paths or navigate to the iteration directory before running
 
@@ -302,7 +302,7 @@ This script must:
 
 **Usage**:
 ```bash
-cd infrastructure/terraform
+cd infrastructure/terraform/azure
 ../../iterations/iteration-1-infrastructure/rollback.sh
 ```
 
@@ -461,7 +461,7 @@ Deploy Vaultwarden, Caddy, and Watchtower containers with correct configuration 
 
 **Usage**:
 ```bash
-cd infrastructure/terraform
+cd infrastructure/terraform/azure
 ../../iterations/iteration-3-services/verify.sh
 ```
 
@@ -487,7 +487,7 @@ cd infrastructure/terraform
 
 **Usage**:
 ```bash
-cd infrastructure/terraform
+cd infrastructure/terraform/azure
 ../../iterations/iteration-3-services/rollback.sh
 ```
 
@@ -543,7 +543,7 @@ Configure Caddy reverse proxy, obtain SSL certificates, verify HTTPS. This itera
 
 **Usage**:
 ```bash
-cd infrastructure/terraform
+cd infrastructure/terraform/azure
 ../../iterations/iteration-4-ssl/verify.sh
 ```
 
@@ -572,7 +572,7 @@ cd infrastructure/terraform
 
 **Usage**:
 ```bash
-cd infrastructure/terraform
+cd infrastructure/terraform/azure
 ../../iterations/iteration-4-ssl/rollback.sh
 ```
 
@@ -629,7 +629,7 @@ Verify security configurations, disable signups after initial account creation. 
 
 **Usage**:
 ```bash
-cd infrastructure/terraform
+cd infrastructure/terraform/azure
 ../../iterations/iteration-5-security/verify.sh
 ```
 
@@ -659,7 +659,7 @@ cd infrastructure/terraform
 
 **Usage**:
 ```bash
-cd infrastructure/terraform
+cd infrastructure/terraform/azure
 ../../iterations/iteration-5-security/rollback.sh
 ```
 
@@ -698,7 +698,7 @@ Configure backup automation via CI/CD, verify backup script, test backup executi
 
 **Usage**:
 ```bash
-cd infrastructure/terraform
+cd infrastructure/terraform/azure
 ../../iterations/iteration-6-backup/verify.sh
 ```
 
@@ -745,7 +745,7 @@ The `verify.sh` script must perform the following checks:
 
 **Usage**:
 ```bash
-cd infrastructure/terraform
+cd infrastructure/terraform/azure
 ../../iterations/iteration-6-backup/rollback.sh
 ```
 
@@ -784,7 +784,7 @@ Verify health monitoring (deployed via CI/CD), Watchtower configuration, cost mo
 
 **Usage**:
 ```bash
-cd infrastructure/terraform
+cd infrastructure/terraform/azure
 ../../iterations/iteration-7-monitoring/verify.sh
 ```
 
@@ -829,7 +829,7 @@ The `verify.sh` script must perform the following checks:
 
 **Usage**:
 ```bash
-cd infrastructure/terraform
+cd infrastructure/terraform/azure
 ../../iterations/iteration-7-monitoring/rollback.sh
 ```
 

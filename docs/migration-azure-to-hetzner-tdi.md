@@ -17,7 +17,7 @@ This document is the **in-repo** copy of the migration plan. Terraform roots: `i
 | **Local** | `export HCLOUD_TOKEN='...'` or a **gitignored** file (e.g. direnv); never commit real tokens. |
 | **Password manager** | Human copy for rotation / DR. |
 
-See also [CI/CD Pipelines](cicd-pipelines.md#hosting-provider--hetzner).
+See also [CI/CD Pipelines — Hosting provider and Hetzner](cicd-pipelines.md#hosting-provider-and-hetzner).
 
 ## Per-iteration Git workflow
 
@@ -66,6 +66,38 @@ If you previously ran Terraform from `infrastructure/terraform/` (flat layout):
 | **MH7** | DNS cutover | Branch if repo changes | `iteration-4` + `iteration-5` verify |
 | **MH8** | Set `HOSTING_PROVIDER=hetzner` in GitHub **Variables** | UI + doc PR | CI uses Hetzner path |
 | **MH9** | Optional Azure teardown | PR if removing Azure from CI | `terraform destroy` in `azure/` |
+
+## MH5–MH9 operator checklist (live migration)
+
+These steps run outside the repo or against real cloud resources; use a feature branch only when you change tracked files.
+
+**MH5 — Hetzner VM live**
+
+1. `export HCLOUD_TOKEN=…` and run `terraform apply` from `infrastructure/terraform/hetzner/` (or let CI apply when `HOSTING_PROVIDER=hetzner`).
+2. Wait for cloud-init (SSH may take a few minutes after create).
+3. `export TERRAFORM_DIR=$PWD/infrastructure/terraform/hetzner` and run `iterations/iteration-3-services/verify.sh` until exit **0** (match `VM_USERNAME` to your Hetzner image user, often `root`).
+
+**MH6 — Data migration**
+
+1. Take a fresh backup on the old host or restore from an existing GPG backup to `/opt/vaultwarden` on the new server (see [plan.md](../plan.md) disaster recovery).
+2. Do not commit secrets or state files.
+3. Smoke-test with iterations 3–4 `verify.sh` as needed.
+
+**MH7 — DNS cutover**
+
+1. Lower DNS TTL beforehand.
+2. Point the production hostname A/AAAA record(s) to the Hetzner server IP.
+3. Run `iterations/iteration-4-ssl/verify.sh` and `iterations/iteration-5-security/verify.sh` with `TERRAFORM_DIR` set to `hetzner` until both exit **0**.
+
+**MH8 — CI default to Hetzner**
+
+1. In GitHub: **Variables** → set **`HOSTING_PROVIDER`** to `hetzner`.
+2. Ensure **`HCLOUD_TOKEN`** is set; **`AZURE_CREDENTIALS`** may remain for rollback.
+3. Confirm a `main` push that touches `infrastructure/**` runs **terraform-plan-hetzner** / **terraform-apply-hetzner**, not Azure.
+
+**MH9 — Optional Azure teardown**
+
+1. When satisfied, run `terraform destroy` from `infrastructure/terraform/azure/` (or destroy via Portal) and remove unused Azure secrets from GitHub.
 
 ## Risks
 
