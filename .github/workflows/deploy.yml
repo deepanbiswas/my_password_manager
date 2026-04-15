@@ -95,13 +95,7 @@ jobs:
       - name: Prepare SSH public key for Terraform
         env:
           SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
-        run: |
-          set -euo pipefail
-          mkdir -p .ci-ssh
-          echo "$SSH_PRIVATE_KEY" > .ci-ssh/id_rsa
-          chmod 600 .ci-ssh/id_rsa
-          ssh-keygen -y -f .ci-ssh/id_rsa > .ci-ssh/id_rsa.pub
-          echo "TF_VAR_ssh_public_key_path=${GITHUB_WORKSPACE}/.ci-ssh/id_rsa.pub" >> "$GITHUB_ENV"
+        run: bash infrastructure/scripts/ci-prepare-ssh-for-terraform.sh
 
       - name: Terraform Init
         working-directory: infrastructure/terraform/azure
@@ -167,13 +161,7 @@ jobs:
       - name: Prepare SSH public key for Terraform
         env:
           SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
-        run: |
-          set -euo pipefail
-          mkdir -p .ci-ssh
-          echo "$SSH_PRIVATE_KEY" > .ci-ssh/id_rsa
-          chmod 600 .ci-ssh/id_rsa
-          ssh-keygen -y -f .ci-ssh/id_rsa > .ci-ssh/id_rsa.pub
-          echo "TF_VAR_ssh_public_key_path=${GITHUB_WORKSPACE}/.ci-ssh/id_rsa.pub" >> "$GITHUB_ENV"
+        run: bash infrastructure/scripts/ci-prepare-ssh-for-terraform.sh
 
       - name: Terraform Init
         working-directory: infrastructure/terraform/azure
@@ -263,13 +251,7 @@ jobs:
       - name: Prepare SSH public key for Terraform
         env:
           SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
-        run: |
-          set -euo pipefail
-          mkdir -p .ci-ssh
-          echo "$SSH_PRIVATE_KEY" > .ci-ssh/id_rsa
-          chmod 600 .ci-ssh/id_rsa
-          ssh-keygen -y -f .ci-ssh/id_rsa > .ci-ssh/id_rsa.pub
-          echo "TF_VAR_ssh_public_key_path=${GITHUB_WORKSPACE}/.ci-ssh/id_rsa.pub" >> "$GITHUB_ENV"
+        run: bash infrastructure/scripts/ci-prepare-ssh-for-terraform.sh
 
       - name: Terraform Init
         working-directory: infrastructure/terraform/hetzner
@@ -324,13 +306,7 @@ jobs:
       - name: Prepare SSH public key for Terraform
         env:
           SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
-        run: |
-          set -euo pipefail
-          mkdir -p .ci-ssh
-          echo "$SSH_PRIVATE_KEY" > .ci-ssh/id_rsa
-          chmod 600 .ci-ssh/id_rsa
-          ssh-keygen -y -f .ci-ssh/id_rsa > .ci-ssh/id_rsa.pub
-          echo "TF_VAR_ssh_public_key_path=${GITHUB_WORKSPACE}/.ci-ssh/id_rsa.pub" >> "$GITHUB_ENV"
+        run: bash infrastructure/scripts/ci-prepare-ssh-for-terraform.sh
 
       - name: Terraform Init
         working-directory: infrastructure/terraform/hetzner

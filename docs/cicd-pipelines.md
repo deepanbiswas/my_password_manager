@@ -37,6 +37,7 @@ CI/CD pipelines automate the deployment process, enabling one-command deployment
 - Set GitHub repository variable **`HOSTING_PROVIDER`** to `azure` (default behavior when unset) or `hetzner`.
 - **Hetzner**: add repository secret **`HCLOUD_TOKEN`** (Hetzner Cloud API token, Read & Write). Never commit it; for local runs use `export HCLOUD_TOKEN=...`. Rotate by revoking the old token in the Hetzner console and updating the GitHub secret.
 - See [Hetzner automated deployment (TDI)](hetzner-automated-deployment.md) for prerequisites, iteration order, and what CI does vs local `verify.sh`.
+- **`SSH_PRIVATE_KEY`**: Store the **full private key** (PEM `BEGIN … PRIVATE KEY` or OpenSSH `BEGIN OPENSSH PRIVATE KEY`). Use **Unix line endings (LF)** — keys pasted from Windows with CRLF can make `ssh-keygen` fail in CI with `error in libcrypto`. Re-paste the key or convert with `dos2unix` before saving the secret.
 
 ### Deploy workflow modes and secrets
 
