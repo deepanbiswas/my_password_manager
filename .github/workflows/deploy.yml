@@ -238,6 +238,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       HCLOUD_TOKEN: ${{ secrets.HCLOUD_TOKEN }}
+      TF_TOKEN_app_terraform_io: ${{ secrets.TF_TOKEN_APP_TERRAFORM_IO }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
@@ -258,6 +259,10 @@ jobs:
         run: terraform init -input=false
         env:
           TF_VAR_domain: ${{ secrets.DOMAIN }}
+
+      - name: Show remote state (sanity check)
+        working-directory: infrastructure/terraform/hetzner
+        run: terraform state list
 
       - name: Terraform Validate
         working-directory: infrastructure/terraform/hetzner
@@ -287,6 +292,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       HCLOUD_TOKEN: ${{ secrets.HCLOUD_TOKEN }}
+      TF_TOKEN_app_terraform_io: ${{ secrets.TF_TOKEN_APP_TERRAFORM_IO }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
