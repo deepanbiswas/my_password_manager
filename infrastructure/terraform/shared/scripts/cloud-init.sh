@@ -16,7 +16,15 @@ usermod -aG docker "$ADMIN"
 
 # shellcheck disable=SC2034
 COMPOSE_VER="v2.24.7"
-curl -fsSL "https://github.com/docker/compose/releases/download/$${COMPOSE_VER}/docker-compose-linux-x86_64" \
+case "$(uname -m)" in
+  aarch64 | arm64) COMPOSE_ARCH=aarch64 ;;
+  x86_64) COMPOSE_ARCH=x86_64 ;;
+  *)
+    echo "Unsupported machine architecture for docker-compose: $(uname -m)" >&2
+    exit 1
+    ;;
+esac
+curl -fsSL "https://github.com/docker/compose/releases/download/$${COMPOSE_VER}/docker-compose-linux-$${COMPOSE_ARCH}" \
   -o /usr/local/bin/docker-compose
 chmod +x /usr/local/bin/docker-compose
 
