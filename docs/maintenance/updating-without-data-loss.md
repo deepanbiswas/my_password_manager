@@ -20,7 +20,7 @@ This guide covers **safe updates** for the Vaultwarden stack on the VM (default 
    ```
 3. Confirm the encrypted file appears in Google Drive (adjust remote name if yours is not `gdrive`):
    ```bash
-   rclone ls "${RCLONE_REMOTE_NAME:-gdrive}:vaultwarden-backups/" | tail -5
+   rclone ls "${RCLONE_REMOTE_NAME:-gdrive}:${RCLONE_BACKUP_FOLDER:-vaultwarden-backups-hetzner}/" | tail -5
    ```
 4. Optionally note the current image tags:
    ```bash

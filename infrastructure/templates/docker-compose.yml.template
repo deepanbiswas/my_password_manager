@@ -13,7 +13,8 @@ services:
       WEBSOCKET_ENABLED: "true"
       SIGNUPS_ALLOWED: "true"
       DOMAIN: "{{DOMAIN}}"
-      ADMIN_TOKEN: ${ADMIN_TOKEN}
+      # Do not set ADMIN_TOKEN here with ${ADMIN_TOKEN}: Compose interpolates .env and treats
+      # `$` in Argon2 PHC strings as variable refs, corrupting the hash. ADMIN_TOKEN comes from env_file.
       DATABASE_URL: /data/db.sqlite3
     volumes:
       - ./vaultwarden/data:/data

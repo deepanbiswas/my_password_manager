@@ -249,7 +249,7 @@ This checklist supports two deployment approaches:
 - [X] **Configure DNS**: Follow [DNS Configuration](#dns-configuration) steps in Common Configuration Steps
   - **Important**: DNS must be configured **immediately after Terraform apply** and **before** CI/CD pipeline runs
   - Use the VM IP from step above (or use the Azure public IP FQDN from Terraform if you are not using a custom domain yet)
-- [X] **Configure Rclone**: Follow [Rclone Configuration](#rclone-configuration) steps in Common Configuration Steps (required before **Iteration 6** backups; [OAuth + Google Drive](docs/rclone-google-drive.md); remote name + `vaultwarden-backups/`)
+- [X] **Configure Rclone**: Follow [Rclone Configuration](#rclone-configuration) steps in Common Configuration Steps (required before **Iteration 6** backups; [OAuth + Google Drive](docs/rclone-google-drive.md); remote name + `RCLONE_BACKUP_FOLDER` default `vaultwarden-backups-hetzner/`)
   - **Important**: Rclone must be configured **before** automated backup/cron deployment ([Iteration 6](auto_deploy_iterations.md#iteration-6-backup-system))
 - [X] Push code to trigger CI/CD pipeline (or wait for automatic trigger)
 - [X] Monitor pipeline / deploy — completed for **core services** (TDI iteration 3):
@@ -440,7 +440,7 @@ The script must perform the following tasks:
 - [ ] Copy backup script from template: `cp infrastructure/templates/backup.sh.template /opt/vaultwarden/scripts/backup.sh`
 - [ ] Make executable: `chmod +x /opt/vaultwarden/scripts/backup.sh`
 - [ ] Test backup manually: `cd /opt/vaultwarden && ./scripts/backup.sh`
-- [ ] Verify backup in Google Drive: `rclone ls gdrive:vaultwarden-backups/`
+- [ ] Verify backup in Google Drive: `rclone ls gdrive:vaultwarden-backups-hetzner/`
 - [ ] Add to crontab: `crontab -e`
   ```bash
   0 2 * * * /opt/vaultwarden/scripts/backup.sh >> /var/log/vaultwarden-backup.log 2>&1
@@ -566,7 +566,7 @@ If the script is not available, you can tag resources manually using Azure CLI c
 
 **Monthly Verification Procedure:**
 
-- [ ] Download latest backup from Google Drive: `rclone copy gdrive:vaultwarden-backups/latest-backup.tar.gz.gpg ./`
+- [ ] Download latest backup from Google Drive: `rclone copy gdrive:vaultwarden-backups-hetzner/latest-backup.tar.gz.gpg ./`
 - [ ] Decrypt backup: `gpg --decrypt latest-backup.tar.gz.gpg > latest-backup.tar.gz`
 - [ ] Extract backup: `tar -xzf latest-backup.tar.gz`
 - [ ] Verify database integrity: `sqlite3 db.sqlite3 "PRAGMA integrity_check;"`
@@ -603,7 +603,7 @@ Vaultwarden uses **version pinning** instead of automatic updates via Watchtower
 **Step 3: Create Backup (Critical)**
 - [ ] Navigate to deployment directory: `cd /opt/vaultwarden`
 - [ ] Run backup script: `./scripts/backup.sh`
-- [ ] Verify backup uploaded to Google Drive: `rclone ls gdrive:vaultwarden-backups/ | tail -1`
+- [ ] Verify backup uploaded to Google Drive: `rclone ls gdrive:vaultwarden-backups-hetzner/ | tail -1`
 - [ ] **Important**: Always backup before updating
 
 **Step 4: Update docker-compose.yml**
@@ -1054,13 +1054,13 @@ These steps are shared between both automated and manual deployment methods. Ref
 
 **Estimated Time**: ~5–15 minutes
 
-**⚠️ IMPORTANT**: Rclone must be configured before backup automation works. Use **OAuth** with Google Drive (e.g. `drive.file` scope) — see [Rclone: Google Drive for Vaultwarden backups](docs/rclone-google-drive.md). Backup script path: `<remote>:vaultwarden-backups/`.
+**⚠️ IMPORTANT**: Rclone must be configured before backup automation works. Use **OAuth** with Google Drive (e.g. `drive.file` scope) — see [Rclone: Google Drive for Vaultwarden backups](docs/rclone-google-drive.md). Backup script path: `<remote>:<RCLONE_BACKUP_FOLDER>/` (default folder `vaultwarden-backups-hetzner`).
 
 - [ ] SSH into VM: `ssh username@vm-ip-address`
 - [ ] Complete [docs/rclone-google-drive.md](docs/rclone-google-drive.md): Drive API + OAuth client in GCP, `rclone config`, browser auth (or `rclone authorize` when headless)
 - [ ] Set `RCLONE_REMOTE_NAME` in `/opt/vaultwarden/.env` to match the remote name (default `gdrive`)
-- [ ] `rclone mkdir <remote>:vaultwarden-backups` once, then `rclone lsd <remote>:vaultwarden-backups`
-- [ ] Test: `rclone ls <remote>:vaultwarden-backups/` (replace `<remote>` with your remote name, e.g. `gdrive`)
+- [ ] `rclone mkdir <remote>:vaultwarden-backups-hetzner` once, then `rclone lsd <remote>:vaultwarden-backups-hetzner`
+- [ ] Test: `rclone ls <remote>:vaultwarden-backups-hetzner/` (replace `<remote>` with your remote name, e.g. `gdrive`)
 
 **Troubleshooting**: [Troubleshooting Guide — Backup fails](docs/troubleshooting.md#backup-fails)
 
@@ -1128,7 +1128,7 @@ These steps are shared between both automated and manual deployment methods. Ref
 - [X] Verify backup automation is configured (check crontab: `crontab -l`)
 - [X] Verify health monitoring is configured (check crontab: `crontab -l`)
 - [X] Test backup manually: `cd /opt/vaultwarden && ./scripts/backup.sh`
-- [X] Verify backup in Google Drive: `rclone ls gdrive:vaultwarden-backups/`
+- [X] Verify backup in Google Drive: `rclone ls gdrive:vaultwarden-backups-hetzner/`
 
 ### OS Updates Configuration (Optional)
 

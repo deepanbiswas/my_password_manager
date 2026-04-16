@@ -8,6 +8,8 @@ SCRIPTS_DIR="${SCRIPTS_DIR:-/opt/vaultwarden/scripts}"
 TS="$(date +%Y%m%d-%H%M%S)"
 STAGE="${BACKUP_DIR}/staging-${TS}"
 RCLONE_REMOTE="${RCLONE_REMOTE_NAME:-gdrive}"
+# Remote path on Drive (must match rclone mkdir + docs). Override in .env if needed.
+RCLONE_BACKUP_FOLDER="${RCLONE_BACKUP_FOLDER:-vaultwarden-backups-hetzner}"
 RETENTION_DAYS="${BACKUP_RETENTION_DAYS:-30}"
 
 mkdir -p "$STAGE"
@@ -37,7 +39,7 @@ ENCRYPTED="${ARCHIVE}.gpg"
 echo -n "$BACKUP_ENCRYPTION_KEY" | gpg --batch --yes --symmetric --cipher-algo AES256 --passphrase-fd 0 -o "$ENCRYPTED" "$ARCHIVE"
 rm -f "$ARCHIVE"
 
-rclone copy "$ENCRYPTED" "${RCLONE_REMOTE}:vaultwarden-backups/" || exit 1
+rclone copy "$ENCRYPTED" "${RCLONE_REMOTE}:${RCLONE_BACKUP_FOLDER}/" || exit 1
 rm -rf "$STAGE" "$ENCRYPTED"
 
 find "$BACKUP_DIR" -name '*.tar.gz.gpg' -mtime "+${RETENTION_DAYS}" -delete 2>/dev/null || true

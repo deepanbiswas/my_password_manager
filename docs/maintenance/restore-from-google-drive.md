@@ -1,6 +1,6 @@
 # Recovery from Google Drive backups
 
-This guide restores Vaultwarden **data** from an encrypted backup produced by `/opt/vaultwarden/scripts/backup.sh` (see `infrastructure/templates/backup.sh.template`). Filenames look like `vaultwarden-YYYYMMDD-HHMMSS.tar.gz.gpg` under the remote folder `vaultwarden-backups/`.
+This guide restores Vaultwarden **data** from an encrypted backup produced by `/opt/vaultwarden/scripts/backup.sh` (see `infrastructure/templates/backup.sh.template`). Filenames look like `vaultwarden-YYYYMMDD-HHMMSS.tar.gz.gpg` under the remote folder configured by **`RCLONE_BACKUP_FOLDER`** in `/opt/vaultwarden/.env` (default **`vaultwarden-backups-hetzner/`**).
 
 You need:
 
@@ -12,7 +12,7 @@ You need:
 
 ```bash
 export RCLONE_REMOTE_NAME="${RCLONE_REMOTE_NAME:-gdrive}"
-rclone ls "${RCLONE_REMOTE_NAME}:vaultwarden-backups/"
+rclone ls "${RCLONE_REMOTE_NAME}:${RCLONE_BACKUP_FOLDER:-vaultwarden-backups-hetzner}/"
 ```
 
 Pick the file you want (usually the latest timestamp).
@@ -22,7 +22,7 @@ Pick the file you want (usually the latest timestamp).
 ```bash
 mkdir -p /opt/vaultwarden/backups/recovery
 cd /opt/vaultwarden/backups/recovery
-rclone copy "${RCLONE_REMOTE_NAME}:vaultwarden-backups/vaultwarden-20260115-020001.tar.gz.gpg" .
+rclone copy "${RCLONE_REMOTE_NAME}:${RCLONE_BACKUP_FOLDER:-vaultwarden-backups-hetzner}/vaultwarden-20260115-020001.tar.gz.gpg" .
 ```
 
 Replace the filename with yours.
@@ -129,6 +129,6 @@ If the script is not present, the manual steps in this document are enough.
 ## Troubleshooting
 
 - **`gpg: decryption failed`:** Wrong `BACKUP_ENCRYPTION_KEY` or you are decrypting a backup from **before** a key rotation (use the key that was active when that backup was made).
-- **`rclone` errors:** Re-run `rclone config` or refresh the remote; confirm the shared folder still contains `vaultwarden-backups/`.
+- **`rclone` errors:** Re-run `rclone config` or refresh the remote; confirm the shared folder still exists (default **`vaultwarden-backups-hetzner/`**, or **`RCLONE_BACKUP_FOLDER`** from `.env`).
 
 See also [Troubleshooting](../troubleshooting.md) for service-level issues after restore.

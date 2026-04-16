@@ -892,7 +892,7 @@ docker-compose logs -f caddy
 tail -n 50 /var/log/vaultwarden-backup.log
 
 # List backups in Google Drive
-rclone lsf gdrive:vaultwarden-backups/
+rclone lsf gdrive:vaultwarden-backups-hetzner/
 ```
 
 ### 6.5 Troubleshooting

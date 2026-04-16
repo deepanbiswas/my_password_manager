@@ -97,7 +97,7 @@ set -a && source .env && set +a && test -n "${BACKUP_ENCRYPTION_KEY:-}" && echo 
 tail -n 50 /var/log/vaultwarden-backup.log
 
 # Verify Google Drive path used by backup.sh
-rclone ls "${REMOTE}:vaultwarden-backups/"
+rclone ls "${REMOTE}:vaultwarden-backups-hetzner/"
 ```
 
 **Rclone setup:** OAuth with Google Drive — see [Rclone: Google Drive for Vaultwarden backups](rclone-google-drive.md). Typical failures:
@@ -106,7 +106,7 @@ rclone ls "${REMOTE}:vaultwarden-backups/"
 |---------|--------|
 | `403` / API not enabled | Enable **Google Drive API** on the GCP project for your OAuth client |
 | OAuth / consent errors | Consent screen in Testing: add your Google account as a **test user** |
-| `vaultwarden-backups` missing | Run once: `rclone mkdir "<remote>:vaultwarden-backups"` |
+| Backup folder missing | Run once: `rclone mkdir "<remote>:vaultwarden-backups-hetzner"` (or match `RCLONE_BACKUP_FOLDER` in `.env`) |
 | Cron never writes logs / nightly backup never appears | The cron line appends to `/var/log/vaultwarden-backup.log`. That file must exist and be **writable by the same user that owns the crontab** (usually your deploy user). If it is missing or root-owned, the job can fail before `backup.sh` runs. Fix once: `sudo touch /var/log/vaultwarden-backup.log && sudo chown "$(whoami):$(whoami)" /var/log/vaultwarden-backup.log`. Re-run **`deploy-to-vm.sh`** from a recent repo (it creates this file automatically) or apply the same two lines on the VM. |
 
 **Common Causes:**

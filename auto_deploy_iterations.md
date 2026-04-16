@@ -714,7 +714,7 @@ The `verify.sh` script must perform the following checks:
 4. **Verify backup encryption key**: Check `BACKUP_ENCRYPTION_KEY` is set in `.env` file
 5. **Execute test backup**: Run backup script manually and verify it completes successfully
 6. **Verify backup artifact path**: Encrypted artifact is produced during the run (script may remove local `.gpg` after `rclone` upload; success is confirmed by upload check below)
-7. **Verify backup uploaded to Google Drive**: Check at least one object exists under `<RCLONE_REMOTE_NAME>:vaultwarden-backups/` (default `gdrive:`) using `rclone lsf`
+7. **Verify backup uploaded to Google Drive**: Check at least one object exists under `<RCLONE_REMOTE_NAME>:vaultwarden-backups-hetzner/` (default `gdrive:`) using `rclone lsf`
 8. **Verify crontab entry**: Check crontab contains entry for nightly backup (runs at 2 AM)
 9. **Verify backup manifest creation**: Check backup script contains manifest creation logic
 10. **Verify host tooling**: `sqlite3` is installed on the VM (e.g. cloud-init / [plan.md](plan.md)); backup reads the database from the Docker volume path on the host, not from inside the container binary path

@@ -9,7 +9,7 @@ This directory contains detailed documentation and guides for the self-hosted pa
 - Verification commands and suggested order
 
 ### [Rclone: Google Drive for Vaultwarden backups](rclone-google-drive.md)
-- OAuth (e.g. `drive.file`), GCP OAuth client, `rclone config`, `RCLONE_REMOTE_NAME` + `vaultwarden-backups/`
+- OAuth (e.g. `drive.file`), GCP OAuth client, `rclone config`, `RCLONE_REMOTE_NAME` + `RCLONE_BACKUP_FOLDER` (default `vaultwarden-backups-hetzner/`)
 
 ### [Reverse Proxy Comparison](reverse-proxy-comparison.md)
 - Why Caddy is recommended vs Nginx

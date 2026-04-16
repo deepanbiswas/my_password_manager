@@ -29,6 +29,11 @@ if [[ -z "${RCLONE_REMOTE_NAME_VM}" ]]; then
   RCLONE_REMOTE_NAME_VM="gdrive"
 fi
 
+RCLONE_BACKUP_FOLDER_VM="$(ssh_vm "grep -E '^RCLONE_BACKUP_FOLDER=' ${ENV_FILE} 2>/dev/null | head -1 | cut -d= -f2- | tr -d '[:space:]'" 2>/dev/null | tr -d '\r' || true)"
+if [[ -z "${RCLONE_BACKUP_FOLDER_VM}" ]]; then
+  RCLONE_BACKUP_FOLDER_VM="vaultwarden-backups-hetzner"
+fi
+
 if ! ssh_vm "test -x ${BACKUP_SCRIPT}"; then
   print_failure "backup.sh missing or not executable at ${BACKUP_SCRIPT}"
   STATUS=1
@@ -95,11 +100,11 @@ if [[ "$STATUS" -eq 0 ]]; then
 fi
 
 if [[ "$STATUS" -eq 0 ]]; then
-  if ! ssh_vm "rclone lsf \"${RCLONE_REMOTE_NAME_VM}:vaultwarden-backups/\" 2>/dev/null | head -1 | grep -q ."; then
-    print_warning "No files listed under ${RCLONE_REMOTE_NAME_VM}:vaultwarden-backups/ (upload may have failed)"
+  if ! ssh_vm "rclone lsf \"${RCLONE_REMOTE_NAME_VM}:${RCLONE_BACKUP_FOLDER_VM}/\" 2>/dev/null | head -1 | grep -q ."; then
+    print_warning "No files listed under ${RCLONE_REMOTE_NAME_VM}:${RCLONE_BACKUP_FOLDER_VM}/ (upload may have failed)"
     STATUS=1
   else
-    print_success "Remote path ${RCLONE_REMOTE_NAME_VM}:vaultwarden-backups/ contains at least one object"
+    print_success "Remote path ${RCLONE_REMOTE_NAME_VM}:${RCLONE_BACKUP_FOLDER_VM}/ contains at least one object"
   fi
 fi
 
