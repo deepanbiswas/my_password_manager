@@ -1,5 +1,5 @@
 terraform {
-  required_version = ">= 1.5.0"
+  required_version = ">= 1.10.0"
 
   # Terraform Cloud (free tier): shared state for local + GitHub Actions.
   # Create workspace "password-manager-hetzner" (CLI-driven) and set execution mode to Local.
@@ -8,9 +8,7 @@ terraform {
     organization = "TF_DEEPAN_PERSONAL_ORG"
 
     workspaces {
-      # Must match the HCP project that contains this workspace. Workspace names are only
-      # unique per project; without this, the CLI can bind to a different (empty) workspace
-      # than the one you migrated — plans then try to recreate existing Hetzner objects.
+      # Requires Terraform >= 1.10 (workspaces.project). Match the HCP project for this workspace.
       project = "Default Project"
       name    = "password-manager-hetzner"
     }
