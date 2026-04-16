@@ -42,3 +42,5 @@ cd "$TERRAFORM_DIR" && ../../iterations/iteration-1-infrastructure/verify.sh
 ```
 
 See [docs/hetzner-automated-deployment.md](../../docs/hetzner-automated-deployment.md) for prerequisites and TDI iterations 1–7 on Hetzner.
+
+<!-- noop: touches infrastructure/** to trigger Deploy workflow on push -->
