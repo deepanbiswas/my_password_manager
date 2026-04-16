@@ -38,7 +38,7 @@ From a root directory, or from anywhere with **`TERRAFORM_DIR`** set:
 
 ```bash
 export TERRAFORM_DIR="$PWD/infrastructure/terraform/azure"
-cd "$TERRAFORM_DIR" && ../../iterations/iteration-1-infrastructure/verify.sh
+cd "$TERRAFORM_DIR" && ../../../iterations/iteration-1-infrastructure/verify.sh
 ```
 
 See [docs/hetzner-automated-deployment.md](../../docs/hetzner-automated-deployment.md) for prerequisites and TDI iterations 1–7 on Hetzner.

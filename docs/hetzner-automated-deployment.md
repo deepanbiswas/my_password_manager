@@ -65,7 +65,7 @@ Complete each iteration’s **steps**, then run its **`verify.sh`** until exit c
 ```bash
 export TERRAFORM_DIR="$PWD/infrastructure/terraform/hetzner"
 cd "$TERRAFORM_DIR"
-../../iterations/<folder>/verify.sh
+../../../iterations/<folder>/verify.sh
 ```
 
 **What CI automates today**
@@ -106,7 +106,7 @@ cd "$TERRAFORM_DIR"
 ```bash
 export TERRAFORM_DIR="$PWD/infrastructure/terraform/hetzner"
 cd "$TERRAFORM_DIR"
-../../iterations/iteration-1-infrastructure/verify.sh
+../../../iterations/iteration-1-infrastructure/verify.sh
 ```
 
 **Checks include:** Terraform state/outputs; `hcloud server describe` for server name from outputs; server **running**; SSH; `/opt/vaultwarden` layout; **UFW** active with 80/443; **Docker** / **Compose**; **rclone**, **sqlite3**, **gpg**; data dir ownership **1000:1000**.
@@ -164,7 +164,7 @@ From **repository root** (script resolves paths from `iterations/`):
 ```bash
 export TERRAFORM_DIR="$PWD/infrastructure/terraform/hetzner"
 cd "$TERRAFORM_DIR"
-../../iterations/iteration-3-services/verify.sh
+../../../iterations/iteration-3-services/verify.sh
 ```
 
 **Checks include:** `docker-compose.yml` and `.env` (mode **600**); containers **vaultwarden**, **caddy**, **watchtower** running; compose expectations such as **SIGNUPS_ALLOWED=true** for initial setup (see script and [cicd-pipelines.md](cicd-pipelines.md#light-gate-option-b-and-what-ci-does-not-check)).
@@ -188,7 +188,7 @@ cd "$TERRAFORM_DIR"
 ```bash
 export TERRAFORM_DIR="$PWD/infrastructure/terraform/hetzner"
 cd "$TERRAFORM_DIR"
-../../iterations/iteration-4-ssl/verify.sh
+../../../iterations/iteration-4-ssl/verify.sh
 ```
 
 **Checks include:** `dig`/`host` for **A** record vs VM IP; HTTPS / TLS / header checks as implemented in the script.
@@ -212,7 +212,7 @@ cd "$TERRAFORM_DIR"
 ```bash
 export TERRAFORM_DIR="$PWD/infrastructure/terraform/hetzner"
 cd "$TERRAFORM_DIR"
-../../iterations/iteration-5-security/verify.sh
+../../../iterations/iteration-5-security/verify.sh
 ```
 
 ---
@@ -234,7 +234,7 @@ cd "$TERRAFORM_DIR"
 ```bash
 export TERRAFORM_DIR="$PWD/infrastructure/terraform/hetzner"
 cd "$TERRAFORM_DIR"
-../../iterations/iteration-6-backup/verify.sh
+../../../iterations/iteration-6-backup/verify.sh
 ```
 
 ---
@@ -254,7 +254,7 @@ cd "$TERRAFORM_DIR"
 ```bash
 export TERRAFORM_DIR="$PWD/infrastructure/terraform/hetzner"
 cd "$TERRAFORM_DIR"
-../../iterations/iteration-7-monitoring/verify.sh
+../../../iterations/iteration-7-monitoring/verify.sh
 ```
 
 ---
