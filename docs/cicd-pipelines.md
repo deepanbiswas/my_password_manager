@@ -78,7 +78,7 @@ This step must SSH into the VM and execute the following operations:
 5. **Caddyfile Generation**: Generate `caddy/Caddyfile` from template if it doesn't exist (replace `{{DOMAIN_NAME}}`)
 6. **Backup Script Deployment**: Copy `backup.sh.template` to `scripts/backup.sh` and make executable
 7. **Health Check Script Deployment**: Generate `scripts/health-check.sh` from template (replace `{{DOMAIN}}`) and make executable
-8. **Crontab Configuration**: Add crontab entries for nightly backup (2 AM) and health checks (every 15 minutes)
+8. **Crontab Configuration**: Add crontab entries for scheduled backup (default: `0 2 */3 * *`) and health checks (every 15 minutes)
 9. **Service Deployment**: Run `docker-compose pull` and `docker-compose up -d`
 10. **Container Verification**: Verify all containers are running
 

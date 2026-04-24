@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Nightly backup: SQLite via host sqlite3 + bind mount, attachments, manifest, GPG encrypt, rclone upload, retention.
+# Encrypted stack backup: SQLite (host sqlite3 + bind mount), attachments, manifest, GPG, rclone upload, local retention.
+# Frequency is set in deploy-to-vm.sh crontab (default: 0 2 */3 * *). Successful runs remove *.tar.gz.gpg from BACKUP_DIR after upload; BACKUP_RETENTION_DAYS only prunes orphan encrypted files left on disk.
 set -euo pipefail
 
 VAULTWARDEN_DATA="${VAULTWARDEN_DATA:-/opt/vaultwarden/vaultwarden/data}"

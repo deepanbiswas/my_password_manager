@@ -73,7 +73,7 @@ This specification defines a self-hosted, secure, and maintenance-free personal 
 ### 1.4 Success Criteria
 
 - System can be deployed on a fresh Ubuntu VM in under 30 minutes
-- Automated backups run nightly without manual intervention
+- Automated backups run on a fixed schedule without manual intervention (default: every third day of the month at 2 AM, via cron; see [plan.md](plan.md))
 - Container updates: Caddy and Watchtower are automatically updated via Watchtower; Vaultwarden uses version pinning with manual updates (security patches within 7 days, critical patches within 24-48 hours)
 - Complete system restore can be performed with a single command
 - Zero unencrypted data transmission over the network
@@ -106,7 +106,7 @@ graph TB
         end
         
         subgraph AppLayer["Application Layer"]
-            BackupScript[Backup Script<br/>Cron Job - Nightly]
+            BackupScript[Backup Script<br/>Cron Job (scheduled)]
             BackupEnc[Encrypted Backup<br/>.tar.gz.gpg<br/>Temporary]
             BackupScript -->|Encrypt with GPG| BackupEnc
             BackupScript -->|Backup & Encrypt| SQLite
@@ -158,7 +158,7 @@ The component architecture details are integrated into the High-Level Architectu
 - **SQLite Database**: Embedded database storing encrypted vault data
 - **Attachment Storage**: Secure file storage for user attachments
 - **Watchtower**: Automated container update service (updates Caddy and Watchtower only; Vaultwarden uses version pinning)
-- **Backup Script**: Automated nightly backup with GPG encryption and Google Drive upload
+- **Backup Script**: Automated scheduled backup with GPG encryption and Google Drive upload
 - **Reverse Proxy (Caddy)**: HTTPS termination, SSL automation, and security features
 
 ### 2.3 Data Flow
@@ -179,12 +179,12 @@ The component architecture details are integrated into the High-Level Architectu
 
 #### 2.3.3 Backup Flow
 
-1. Cron job triggers backup script nightly
+1. Cron job triggers the backup script on the configured schedule
 2. Script creates SQLite dump and compresses attachments
 3. Backup archive encrypted using GPG with passphrase
 4. Encrypted backup uploaded to Google Drive via Rclone
-5. Local backup files deleted after successful upload
-6. Retention policy: Keep last 30 days of backups
+5. After successful upload, the encrypted local artifact in `backups/` is removed (staged files are always removed)
+6. `BACKUP_RETENTION_DAYS` (default: 30) prunes any leftover `*.tar.gz.gpg` on the host; primary retention of backup history is the remote (Google Drive) and operator policy, not unbounded local copies
 
 ### 2.4 Technology Stack
 
@@ -469,12 +469,12 @@ After deployment, the following must be configured:
 - **Signup Restriction**: After creating the initial master account, public signups must be disabled by:
   1. Setting `SIGNUPS_ALLOWED=false` in `.env` file
   2. Restarting Vaultwarden container to apply the change
-- **Backup Automation**: Nightly backup cron job must be configured
+- **Backup Automation**: Backup cron job must be configured
 - **Health Monitoring**: Optional health check monitoring must be available
 
 #### 3.7.2 Backup Requirements
 
-- Backups must run automatically on a schedule (recommended: nightly at 2 AM)
+- Backups must run automatically on a schedule (default deployment: 02:00 on every third day of the month; adjust in crontab if needed)
 - Backups must include SQLite database and attachments
 - Backups must be encrypted before upload
 - Backups must be uploaded to Google Drive via Rclone

@@ -441,9 +441,9 @@ The script must perform the following tasks:
 - [ ] Make executable: `chmod +x /opt/vaultwarden/scripts/backup.sh`
 - [ ] Test backup manually: `cd /opt/vaultwarden && ./scripts/backup.sh`
 - [ ] Verify backup in Google Drive: `rclone ls gdrive:vaultwarden-backups-hetzner/`
-- [ ] Add to crontab: `crontab -e`
+- [ ] Add to crontab: `crontab -e` (or rely on `deploy-to-vm.sh`, which installs the line below and refreshes on each deploy)
   ```bash
-  0 2 * * * /opt/vaultwarden/scripts/backup.sh >> /var/log/vaultwarden-backup.log 2>&1
+  0 2 */3 * * cd /opt/vaultwarden && set -a && . ./.env && set +a && /opt/vaultwarden/scripts/backup.sh >> /var/log/vaultwarden-backup.log 2>&1
   ```
 
 **Note**: The backup encryption key should already be set in `.env` from Step 2. If you need to set it up separately, see [Backup Encryption Key Setup](#backup-encryption-key-setup) in Common Configuration Steps.
@@ -896,7 +896,7 @@ This section contains requirements for all template files and scripts referenced
 - **Cleanup**: Remove local staging files and encrypted artifact after successful upload (per template)
 - **Retention Policy**: Remove old backups older than retention period (30 days default)
 
-**Usage**: Script is copied from template and executed via crontab for nightly backups.
+**Usage**: Script is copied from template and executed via crontab on the configured schedule (default `0 2 */3 * *`).
 
 **Note**: This template is created during execution based on these requirements, not stored in documentation.
 

@@ -80,13 +80,13 @@ else
 fi
 
 if ! ssh_vm "crontab -l 2>/dev/null | grep -qF '/opt/vaultwarden/scripts/backup.sh'"; then
-  print_failure "crontab missing entry for backup.sh (expected nightly 0 2 * * * per plan.md)"
+  print_failure "crontab missing entry for backup.sh (expected 0 2 */3 * * per deploy-to-vm.sh / plan.md)"
   STATUS=1
-elif ! ssh_vm "crontab -l 2>/dev/null | grep -F '/opt/vaultwarden/scripts/backup.sh' | grep -qF '0 2 * * *'"; then
-  print_warning "backup crontab line may not use 0 2 * * * (check schedule)"
+elif ! ssh_vm "crontab -l 2>/dev/null | grep -F '/opt/vaultwarden/scripts/backup.sh' | grep -qF '0 2 */3 * *'"; then
+  print_warning "backup crontab line may not use 0 2 */3 * * (check schedule)"
   STATUS=1
 else
-  print_success "crontab: nightly backup at 0 2 * * *"
+  print_success "crontab: scheduled backup at 0 2 */3 * * (≈ every 3rd calendar day of month at 02:00)"
 fi
 
 if [[ "$STATUS" -eq 0 ]]; then

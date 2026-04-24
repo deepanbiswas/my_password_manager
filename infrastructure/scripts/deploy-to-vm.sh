@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Deploy templates and start Vaultwarden stack on the VM (CI or local with SSH).
 # Required env: VM_PUBLIC_IP, VM_USERNAME, DOMAIN (full URL, e.g. https://host/)
-# Optional: REPO_ROOT (defaults from script location). Installs backup.sh + nightly crontab (Iteration 6),
+# Optional: REPO_ROOT (defaults from script location). Installs backup.sh + scheduled backup crontab (Iteration 6),
 #            health-check.sh + */15 crontab + logrotate (Iteration 7).
 # Optional: SSH_IDENTITY_FILE — private key path (default: ~/.ssh/id_rsa_vaultwarden if present, same as iterations/common/lib.sh / terraform.tfvars).
 #          On GitHub Actions, ssh-agent usually has the key; no file needed.
@@ -121,14 +121,13 @@ else
   exit 1
 fi
 
-# Backup script + nightly cron (TDI iteration 6; templates already under infrastructure/templates/)
+# Backup script + crontab (TDI iteration 6; templates under infrastructure/templates/)
+# Schedule: 02:00 every 3rd day of the month (cron day-of-month step */3 ≈ 10 runs/month; reduces Drive/API use vs daily)
 mkdir -p scripts backups
 cp -f infrastructure/templates/backup.sh.template scripts/backup.sh
 chmod +x scripts/backup.sh
-# crontab -l fails with no user crontab; avoid set -e killing the subshell before echo
-if ! { crontab -l 2>/dev/null || true; } | grep -qF '/opt/vaultwarden/scripts/backup.sh'; then
-  ({ crontab -l 2>/dev/null || true; echo '0 2 * * * cd /opt/vaultwarden && set -a && . ./.env && set +a && /opt/vaultwarden/scripts/backup.sh >> /var/log/vaultwarden-backup.log 2>&1'; }) | crontab -
-fi
+# Idempotent: replace any existing backup.sh line so schedule updates on re-deploy
+({ crontab -l 2>/dev/null | grep -vF '/opt/vaultwarden/scripts/backup.sh' || true; echo '0 2 */3 * * cd /opt/vaultwarden && set -a && . ./.env && set +a && /opt/vaultwarden/scripts/backup.sh >> /var/log/vaultwarden-backup.log 2>&1'; }) | crontab -
 # Cron runs as the deploy user; /var/log/ is root-owned — create log file so redirection succeeds (same pattern as health log).
 sudo touch /var/log/vaultwarden-backup.log
 sudo chown "$(id -un):$(id -gn)" /var/log/vaultwarden-backup.log

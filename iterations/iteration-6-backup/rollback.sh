@@ -15,7 +15,7 @@ fi
 # shellcheck source=../common/config.sh
 source "${SCRIPT_DIR}/../common/config.sh"
 
-echo "This removes the nightly backup crontab line and deletes /opt/vaultwarden/scripts/backup.sh on ${ADMIN_USER}@${PUBLIC_IP}."
+echo "This removes the backup crontab line and deletes /opt/vaultwarden/scripts/backup.sh on ${ADMIN_USER}@${PUBLIC_IP}."
 echo "Re-run deploy-to-vm.sh or CI deploy to restore."
 echo ""
 read -r -p "Type yes to confirm: " ans

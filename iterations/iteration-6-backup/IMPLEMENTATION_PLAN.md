@@ -7,7 +7,7 @@
 
 ## Objective
 
-Deploy **`backup.sh`** from [`backup.sh.template`](../../infrastructure/templates/backup.sh.template) via [`deploy-to-vm.sh`](../../infrastructure/scripts/deploy-to-vm.sh), add **nightly crontab (0 2 \* \* \*)**, and ship **`verify.sh`** / **`rollback.sh`** per TDI.
+Deploy **`backup.sh`** from [`backup.sh.template`](../../infrastructure/templates/backup.sh.template) via [`deploy-to-vm.sh`](../../infrastructure/scripts/deploy-to-vm.sh), add **scheduled crontab (default 0 2 */3 * *)**, and ship **`verify.sh`** / **`rollback.sh`** per TDI.
 
 ---
 
