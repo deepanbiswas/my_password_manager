@@ -6,7 +6,7 @@ This guide is the **operator playbook** for deploying the password manager stack
 
 **“Iteration 1” does not create infrastructure** — it is the name of the **first verification script** (`iteration-1-infrastructure/verify.sh`). That script **checks** that Terraform’s resources exist, that the server is running, that SSH works, and that cloud-init finished its job. Same pattern for Iterations 2–7: each is a **test pass**, not the tool that creates the server or containers (except where steps say to run `deploy-to-vm.sh` or push to CI).
 
-**Related:** [Prerequisites checklist](prerequisites-checklist.md) (common + Hetzner), [CI/CD pipelines](cicd-pipelines.md), [Terraform layout](../infrastructure/terraform/README.md), [TDI reference](../auto_deploy_iterations.md), [AGENTS.md](../AGENTS.md).
+**Related:** [Prerequisites checklist](prerequisites-checklist.md) (common + Hetzner), [CI/CD pipelines](cicd-pipelines.md), [Terraform layout](../infrastructure/terraform/README.md), [TDI reference](../auto_deploy_iterations.md), [AGENTS.md](../AGENTS.md). To remove the stack: [Hetzner undeploy / teardown](hetzner-undeploy.md).
 
 ---
 
@@ -70,7 +70,7 @@ cd "$TERRAFORM_DIR"
 
 **What CI automates today**
 
-- On push to `main` (paths: `infrastructure/**`, `infrastructure/templates/**`, `.github/workflows/deploy.yml`, `docker-compose.yml`) with `HOSTING_PROVIDER=hetzner` and `HCLOUD_TOKEN`: **terraform plan/apply** for `infrastructure/terraform/hetzner`, then **light gate** (`verify-vm-deployment.sh` + **Iteration 3** `verify.sh`), then optionally **Deploy Application Configuration** (`deploy-to-vm.sh`). See [cicd-pipelines.md](cicd-pipelines.md).
+- When the **Deploy** workflow is configured with **push** triggers (see `.github/workflows/deploy.yml` header): on push to `main` (paths: `infrastructure/**`, `infrastructure/templates/**`, `.github/workflows/deploy.yml`, `docker-compose.yml`) with `HOSTING_PROVIDER=hetzner` and `HCLOUD_TOKEN`: **terraform plan/apply** for `infrastructure/terraform/hetzner`, then **light gate** (`verify-vm-deployment.sh` + **Iteration 3** `verify.sh`), then optionally **Deploy Application Configuration** (`deploy-to-vm.sh`). If the workflow is **manual-only** (`workflow_dispatch`), runs happen only when you start the workflow from the Actions tab. See [cicd-pipelines.md](cicd-pipelines.md).
 - **Iterations 4–7** are **not** used as the CI skip gate; run them **locally** when you want full SSL, hardening, backup, and monitoring sign-off.
 
 ---

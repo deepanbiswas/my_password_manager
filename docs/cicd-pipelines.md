@@ -16,8 +16,9 @@ CI/CD pipelines automate the deployment process, enabling one-command deployment
 
 **Workflow Structure Requirements**:
 
-1. **Workflow Triggers**:
-   - Trigger on push to `main` branch when paths change: `infrastructure/**`, `docker-compose.yml`, `.github/workflows/deploy.yml`
+1. **Workflow Triggers** (see comments at top of `deploy.yml` for the live configuration):
+   - **Typical / after re-enable**: push to `main` when paths change: `infrastructure/**`, `infrastructure/templates/**`, `docker-compose.yml`, `.github/workflows/deploy.yml`
+   - **Paused (manual-only)**: `workflow_dispatch` only — no automatic runs on push (used during Hetzner teardown; restore the `push:` block when you want CI deploys again)
    - Manual trigger (`workflow_dispatch`) with environment selection (production/staging)
 
 2. **Environment Variables**:

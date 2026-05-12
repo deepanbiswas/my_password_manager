@@ -5,18 +5,13 @@
 # - Terraform Hetzner: HOSTING_PROVIDER=hetzner and HCLOUD_TOKEN set
 # - VM-only: neither Terraform path runs, but VM_PUBLIC_IP + VM_USERNAME + DOMAIN + SSH_PRIVATE_KEY set
 # - Skipped: no Terraform path and incomplete VM secrets → deploy-notice
+#
+# PAUSED: push-triggered runs are disabled (operator undeploy / teardown). Re-add a `push:` block
+# under `on:` when you want automatic deploys on infrastructure changes again. Manual runs only:
 
 name: Deploy
 
 on:
-  push:
-    branches:
-      - main
-    paths:
-      - "infrastructure/**"
-      - "infrastructure/templates/**"
-      - ".github/workflows/deploy.yml"
-      - "docker-compose.yml"
   workflow_dispatch:
     inputs:
       environment:
